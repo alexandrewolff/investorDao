@@ -27,6 +27,7 @@ contract InvestorDao {
     }
 
     mapping(address => uint256) public shares;
+    mapping(address => mapping(uint256 => bool)) voted;
 
     event LiquidityInvested(address user, uint256 weiAmount);
     event LiquidityDivested(address user, uint256 shareAmount, uint256 weiAmount);
@@ -78,7 +79,7 @@ contract InvestorDao {
         emit SharesTransfered(msg.sender, to, shareAmount);
     }
 
-    function createProposal(ProposalType proposalType, string memory token, uint256 amountToTrade) public onlyInvestors() {
+    function createProposal(ProposalType proposalType, string memory token, uint256 amountToTrade) public onlyInvestors {
         require(availableFunds >= amountToTrade, 'not enough available funds');
         uint256 nextId = proposals.length;
         uint256 end = block.timestamp + voteTime;
@@ -96,5 +97,15 @@ contract InvestorDao {
         availableFunds = availableFunds.sub(amountToTrade);
 
         emit ProposalCreated(msg.sender, nextId, token, amountToTrade, end);
+    }
+
+    function vote(uint256 proposalId) external onlyInvestors {
+        Proposal storage proposal = proposals[proposalId];
+
+        require(voted[msg.sender][proposalId] == false, 'investor can only vote once for a proposal');
+        require(block.timestamp < proposal.end, 'can only vote until proposal end date');
+
+        voted[msg.sender][proposalId] = true;
+        proposal.votes = proposal.votes.add(shares[msg.sender]);
     }
 }

@@ -28,7 +28,8 @@ contract('Shares Handling', (accounts) => {
     });
 
     it('should NOT accept investment after contributionTime', async () => {
-        await time.increase(31); 
+        await time.increase(31);
+        
         await expectRevert(
             investorDao.invest({ from: investor1, value: 100 }), 
             'cannot contribute after contributionEnd'

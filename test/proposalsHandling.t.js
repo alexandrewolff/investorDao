@@ -28,6 +28,13 @@ contract('Proposals Handling', (accounts) => {
         assert(Proposal0.amountToTrade.toNumber() === 400, 'Wrong amount to trade');
     });
 
+    it('should NOT create a proposal if not an investor', async () => {
+        await expectRevert(
+            investorDao.createProposal(0, 'LINK', 400, { from: noOne }),
+            'only investors'
+        );
+    });
+
     it('should NOT create a proposal if not enough available funds', async () => {
         await expectRevert(
             investorDao.createProposal(0, 'LINK', 400, { from: investor1 }),
@@ -35,10 +42,35 @@ contract('Proposals Handling', (accounts) => {
         );
     });
 
-    it('should NOT create a proposal if not an investor', async () => {
+    it('Should vote', async () => {
+        await investorDao.vote(0, { from: investor1 });
+
+        const investor1Shares = await investorDao.shares(investor1);
+        const Proposal0 = await investorDao.proposals(0);
+
+        assert(Proposal0.votes.toNumber() === investor1Shares.toNumber(), 'Wrong number of votes');
+    });
+
+    it('should NOT vote if not an investor', async () => {
         await expectRevert(
-            investorDao.createProposal(0, 'LINK', 400, { from: noOne }),
+            investorDao.vote(0, { from: noOne }),
             'only investors'
+        );
+    });
+
+    it('should NOT vote if already voted', async () => {
+        await expectRevert(
+            investorDao.vote(0, { from: investor1 }),
+            'investor can only vote once for a proposal'
+        );
+    });
+
+    it('should NOT vote after proposal end', async () => {
+        await time.increase(21);
+
+        await expectRevert(
+            investorDao.vote(0, { from: investor2 }),
+            'can only vote until proposal end date'
         );
     });
 });
