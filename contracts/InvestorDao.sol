@@ -1,10 +1,13 @@
 pragma solidity =0.6.12;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import './interfaces/IUniswapV2Router02.sol';
 
 contract InvestorDao {
     using SafeMath for uint256;
     
+    address uniswapV2Router02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+
     uint256 public totalShares;
     uint256 public availableFunds;
     uint256 public contributionEnd;
@@ -58,10 +61,8 @@ contract InvestorDao {
         require(shares[msg.sender] >= shareAmount, 'not enough shares');
 
         shares[msg.sender] = shares[msg.sender].sub(shareAmount);
-        availableFunds = availableFunds.sub(shareAmount);
         uint256 weiOut = availableFunds.mul(shareAmount).div(totalShares);
-
-        require(availableFunds >= weiOut, 'not enough available funds');
+        availableFunds = availableFunds.sub(weiOut);
 
         emit LiquidityDivested(msg.sender, shareAmount, weiOut);
 
@@ -78,7 +79,7 @@ contract InvestorDao {
     }
 
     function createProposal(ProposalType proposalType, string memory token, uint256 amountToTrade) public onlyInvestors() {
-        require(availableFunds >= amountToTrade, 'not enough funds available');
+        require(availableFunds >= amountToTrade, 'not enough available funds');
         uint256 nextId = proposals.length;
         uint256 end = block.timestamp + voteTime;
 
