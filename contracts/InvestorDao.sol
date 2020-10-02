@@ -4,21 +4,24 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract InvestorDao {
     using SafeMath for uint256;
+    
+    uint256 public totalShares;
+    uint256 public availableFunds;
+    uint256 public contributionEnd;
+    uint256 public voteTime;
+    Proposal[] public proposals;
+    
+    enum ProposalType { buy, sell }
 
     struct Proposal {
         uint256 id;
+        ProposalType proposalType;
         string token;
         uint256 amountToTrade;
         uint256 votes;
         uint256 end;
         bool executed;
     }
-
-    uint256 public totalShares;
-    uint256 public availableFunds;
-    uint256 public contributionEnd;
-    uint256 public voteTime;
-    Proposal[] public proposals;
 
     mapping(address => uint256) public shares;
 
@@ -74,13 +77,14 @@ contract InvestorDao {
         emit SharesTransfered(msg.sender, to, shareAmount);
     }
 
-    function createProposal(string memory token, uint256 amountToTrade) public onlyInvestors() {
+    function createProposal(ProposalType proposalType, string memory token, uint256 amountToTrade) public onlyInvestors() {
         require(availableFunds >= amountToTrade, 'not enough funds available');
         uint256 nextId = proposals.length;
         uint256 end = block.timestamp + voteTime;
 
         proposals.push(Proposal(
             nextId,
+            proposalType,
             token,
             amountToTrade,
             0,

@@ -14,7 +14,7 @@ contract('Proposals Handling', (accounts) => {
     });
 
     it('should create a proposal', async () => {
-        await investorDao.createProposal('LINK', 400, { from: investor1 });
+        await investorDao.createProposal(0, 'LINK', 400, { from: investor1 });
 
         const availableFunds = await investorDao.availableFunds();
         const proposalsAmount = await investorDao.getProposalsAmount();
@@ -23,6 +23,7 @@ contract('Proposals Handling', (accounts) => {
         assert(availableFunds.toNumber() === 100 + 200 + 300 - 400, 'Wrong availableFunds amount');
         assert(proposalsAmount.toNumber() === 1, 'Wrong number of proposal');
         assert(Proposal0.id.toNumber() === 0);
+        assert(Proposal0.proposalType.toNumber() === 0);
         assert(Proposal0.token === 'LINK');
         assert(Proposal0.amountToTrade.toNumber() === 400);
     });
