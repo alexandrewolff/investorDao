@@ -1,16 +1,30 @@
+// Test on local test network
+
 const { expectRevert, time } = require('@openzeppelin/test-helpers');
+const TestToken = artifacts.require('TestToken');
+const IDAO = artifacts.require('IDAO');
 const InvestorDao = artifacts.require('InvestorDao');
 
-contract('Proposals Handling', (accounts) => {
-    let investorDao;
+contract('Proposals', (accounts) => {
+    let dai, idao, investorDao;
     const [investor1, investor2, investor3, noOne] = [accounts[1], accounts[2], accounts[3], accounts[4]];
     
     before(async () => {
+        dai = await TestToken.deployed();
+        idao = await IDAO.deployed();
         investorDao = await InvestorDao.deployed();
 
-        await investorDao.invest({ from: investor1, value: 100 });
-        await investorDao.invest({ from: investor2, value: 200 });
-        await investorDao.invest({ from: investor3, value: 300 });
+        await dai.mint(investor1, 1000);
+        await dai.mint(investor2, 1000);
+        await dai.mint(investor3, 1000);
+
+        await dai.approve(investorDao.address, 1000, { from: investor1});
+        await dai.approve(investorDao.address, 1000, { from: investor2});
+        await dai.approve(investorDao.address, 1000, { from: investor3});
+
+        investorDao.invest(300, { from: investor3 });
+        investorDao.invest(100, { from: investor1 });
+        investorDao.invest(200, { from: investor2 });
     });
 
     it('should create a proposal', async () => {
@@ -45,10 +59,10 @@ contract('Proposals Handling', (accounts) => {
     it('Should vote', async () => {
         await investorDao.vote(0, { from: investor1 });
 
-        const investor1Shares = await investorDao.shares(investor1);
+        const investor1Weight = await idao.balanceOf(investor1);
         const Proposal0 = await investorDao.proposals(0);
 
-        assert(Proposal0.votes.toNumber() === investor1Shares.toNumber(), 'Wrong number of votes');
+        assert(Proposal0.votes.toNumber() === investor1Weight.toNumber(), 'Wrong number of votes');
     });
 
     it('should NOT vote if not an investor', async () => {

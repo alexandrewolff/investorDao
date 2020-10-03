@@ -1,14 +1,17 @@
 pragma solidity =0.6.12;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import './interfaces/IUniswapV2Router02.sol';
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/IIDAO.sol";
+import "./interfaces/IUniswapV2Router02.sol";
 
 contract InvestorDao {
     using SafeMath for uint256;
     
-    address uniswapV2Router02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address idaoToken;
+    address daiToken;
+    address uniswapV2Router02;
 
-    uint256 public totalShares;
     uint256 public availableFunds;
     uint256 public contributionEnd;
     uint256 public voteTime;
@@ -26,61 +29,57 @@ contract InvestorDao {
         bool executed;
     }
 
-    mapping(address => uint256) public shares;
     mapping(address => mapping(uint256 => bool)) voted;
 
-    event LiquidityInvested(address user, uint256 weiAmount);
-    event LiquidityDivested(address user, uint256 shareAmount, uint256 weiAmount);
-    event SharesTransfered(address from, address to, uint256 weiAmount);
+    event LiquidityInvested(address user, uint256 daiAmount);
+    event LiquidityDivested(address user, uint256 idaoAmount, uint256 weiAmount);
     event ProposalCreated(address user, uint256 id, string token, uint256 amountToTrade, uint256 end);
+    event InvestorVoted(address user, uint256 investorWeight, uint256 proposalId);
 
     modifier onlyInvestors() {
-        require(shares[msg.sender] > 0, 'only investors');
+        require(IIDAO(idaoToken).balanceOf(msg.sender) > 0, "only investors");
         _;
     }
 
-    constructor(uint256 contributionTime, uint256 _voteTime) public {
+    constructor(uint256 contributionTime, uint256 _voteTime, address _idaoToken, address _daiToken, address _uniswapV2Router02) public {
+        require(_idaoToken != address(0), "zero address detected");
+        require(_daiToken != address(0), "zero address detected");
+        require(_uniswapV2Router02 != address(0), "zero address detected");
+
         contributionEnd = block.timestamp + contributionTime;
         voteTime = _voteTime;
+        idaoToken = _idaoToken;
+        daiToken = _daiToken;
+        uniswapV2Router02 = _uniswapV2Router02;
     }
 
-    function getProposalsAmount() external view returns(uint256) {
-        return proposals.length;
+    function invest(uint256 amount) external {
+        require(block.timestamp < contributionEnd, "cannot contribute after contributionEnd");
+
+        availableFunds = availableFunds.add(amount);
+
+        emit LiquidityInvested(msg.sender, amount);
+
+        IERC20(daiToken).transferFrom(msg.sender, address(this), amount);
+        IIDAO(idaoToken).mint(msg.sender, amount); // 1 DAI invested = 1 IDAO received
     }
 
-    function invest() payable external {
-        require(block.timestamp < contributionEnd, 'cannot contribute after contributionEnd');
+    function divest(uint256 idaoAmount) external {
+        IIDAO idao = IIDAO(idaoToken);
 
-        shares[msg.sender] = shares[msg.sender].add(msg.value); // 1 wei = 1 share
-        totalShares = totalShares.add(msg.value);
-        availableFunds = availableFunds.add(msg.value);
+        require(idao.balanceOf(msg.sender) >= idaoAmount, "not enough IDAO");
 
-        emit LiquidityInvested(msg.sender, msg.value);
-    }
+        uint256 daiOut = availableFunds.mul(idaoAmount).div(idao.totalSupply());
+        availableFunds = availableFunds.sub(daiOut);
 
-    function divest(uint256 shareAmount) external {
-        require(shares[msg.sender] >= shareAmount, 'not enough shares');
+        emit LiquidityDivested(msg.sender, idaoAmount, daiOut);
 
-        shares[msg.sender] = shares[msg.sender].sub(shareAmount);
-        uint256 weiOut = availableFunds.mul(shareAmount).div(totalShares);
-        availableFunds = availableFunds.sub(weiOut);
-
-        emit LiquidityDivested(msg.sender, shareAmount, weiOut);
-
-        msg.sender.transfer(weiOut);
-    }
-    
-    function transferShares(uint256 shareAmount, address to) external {
-        require(shares[msg.sender] >= shareAmount, 'not enough shares');
-
-        shares[msg.sender] = shares[msg.sender].sub(shareAmount);
-        shares[to] = shares[to].add(shareAmount);
-
-        emit SharesTransfered(msg.sender, to, shareAmount);
+        idao.burn(msg.sender, idaoAmount);
+        IERC20(daiToken).transfer(msg.sender, daiOut);
     }
 
     function createProposal(ProposalType proposalType, string memory token, uint256 amountToTrade) public onlyInvestors {
-        require(availableFunds >= amountToTrade, 'not enough available funds');
+        require(availableFunds >= amountToTrade, "not enough available funds");
         uint256 nextId = proposals.length;
         uint256 end = block.timestamp + voteTime;
 
@@ -99,13 +98,20 @@ contract InvestorDao {
         emit ProposalCreated(msg.sender, nextId, token, amountToTrade, end);
     }
 
+    function getProposalsAmount() external view returns(uint256) {
+        return proposals.length;
+    }
+
     function vote(uint256 proposalId) external onlyInvestors {
         Proposal storage proposal = proposals[proposalId];
+        uint256 investorWeight = IIDAO(idaoToken).balanceOf(msg.sender);
 
-        require(voted[msg.sender][proposalId] == false, 'investor can only vote once for a proposal');
-        require(block.timestamp < proposal.end, 'can only vote until proposal end date');
+        require(voted[msg.sender][proposalId] == false, "investor can only vote once for a proposal");
+        require(block.timestamp < proposal.end, "can only vote until proposal end date");
 
         voted[msg.sender][proposalId] = true;
-        proposal.votes = proposal.votes.add(shares[msg.sender]);
+        proposal.votes = proposal.votes.add(investorWeight); // votes are weighted
+
+        emit InvestorVoted(msg.sender, investorWeight, proposalId);
     }
 }
