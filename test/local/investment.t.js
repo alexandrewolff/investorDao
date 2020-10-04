@@ -6,8 +6,8 @@ const IDAO = artifacts.require('IDAO');
 const InvestorDao = artifacts.require('InvestorDao');
 
 contract('Investment', (accounts) => {
-    let idao, dai, investorDao;
     const [investor1, investor2, investor3] = [accounts[1], accounts[2], accounts[3]];
+    let idao, dai, investorDao;
     
     before(async () => {
         idao = await IDAO.deployed();

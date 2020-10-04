@@ -6,12 +6,15 @@ const IDAO = artifacts.require('IDAO');
 const InvestorDao = artifacts.require('InvestorDao');
 
 contract('Proposals', (accounts) => {
-    let dai, idao, investorDao;
+    const zeroAddress = '0x0000000000000000000000000000000000000000';
+    const validAddress = '0x0000000000000000000000000000000000000001';
     const [investor1, investor2, investor3, noOne] = [accounts[1], accounts[2], accounts[3], accounts[4]];
+    let dai, idao, testToken, investorDao;
     
     before(async () => {
         dai = await TestToken.deployed();
         idao = await IDAO.deployed();
+        testToken = await TestToken.new('Test Token', 'TTK');
         investorDao = await InvestorDao.deployed();
 
         await dai.mint(investor1, 1000);
@@ -27,8 +30,8 @@ contract('Proposals', (accounts) => {
         investorDao.invest(200, { from: investor2 });
     });
 
-    it('should create a proposal', async () => {
-        await investorDao.createProposal(0, 'LINK', 400, { from: investor1 });
+    it('should create a buy proposal', async () => {
+        await investorDao.createProposal(0, validAddress, 400, { from: investor1 });
 
         const availableFunds = await investorDao.availableFunds();
         const proposalsAmount = await investorDao.getProposalsAmount();
@@ -38,25 +41,39 @@ contract('Proposals', (accounts) => {
         assert(proposalsAmount.toNumber() === 1, 'Wrong number of proposal');
         assert(Proposal0.id.toNumber() === 0, 'Wrong id');
         assert(Proposal0.proposalType.toNumber() === 0, 'Wrong proposal type');
-        assert(Proposal0.token === 'LINK', 'Wrong token name');
+        assert(Proposal0.token === validAddress, 'Wrong token name');
         assert(Proposal0.amountToTrade.toNumber() === 400, 'Wrong amount to trade');
     });
 
-    it('should NOT create a proposal if not an investor', async () => {
+    it('should NOT create a buy proposal if not an investor', async () => {
         await expectRevert(
-            investorDao.createProposal(0, 'LINK', 400, { from: noOne }),
+            investorDao.createProposal(0, validAddress, 400, { from: noOne }),
             'only investors'
         );
     });
 
-    it('should NOT create a proposal if not enough available funds', async () => {
+    it('should NOT create a buy proposal if not enough available funds', async () => {
         await expectRevert(
-            investorDao.createProposal(0, 'LINK', 400, { from: investor1 }),
+            investorDao.createProposal(0, validAddress, 400, { from: investor1 }),
             'not enough available funds'
         );
     });
 
-    it('Should vote', async () => {
+    it('should NOT create a buy proposal if zero address for token', async () => {
+        await expectRevert(
+            investorDao.createProposal(0, zeroAddress, 400, { from: investor1 }),
+            'not enough available funds'
+        );
+    });
+
+    it('should NOT create a sell proposal if not enough token', async () => {
+        await expectRevert(
+            investorDao.createProposal(1, testToken.address, 50, { from: investor1 }),
+            'not enough tokens to sell'
+        );
+    });
+
+    it('should vote', async () => {
         await investorDao.vote(0, { from: investor1 });
 
         const investor1Weight = await idao.balanceOf(investor1);

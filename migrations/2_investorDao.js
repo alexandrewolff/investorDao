@@ -6,7 +6,7 @@ module.exports = async function(deployer, network) {
     // if (network === 'ganache') {
         await deployer.deploy(TestToken, 'DAI', 'DAI');
         await deployer.deploy(IDAO);
-        await deployer.deploy(InvestorDao, 30, 20, IDAO.address, TestToken.address, '0x0000000000000000000000000000000000000001');
+        await deployer.deploy(InvestorDao, 30, 20, 51, IDAO.address, TestToken.address, '0x0000000000000000000000000000000000000001');
 
         const idao = await IDAO.deployed();
         await idao.setInvestorDaoAddr(InvestorDao.address);

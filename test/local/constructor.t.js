@@ -9,21 +9,21 @@ contract('Constructor', (accounts) => {
 
     it('should NOT deploy if zero address for IDAO', async () => {
         await expectRevert(
-            InvestorDao.new(30, 20, zeroAddress, validAddress, validAddress),
+            InvestorDao.new(30, 20, 51, zeroAddress, validAddress, validAddress),
             'zero address detected'
         );
     });
 
     it('should NOT deploy if zero address for DAI', async () => {
         await expectRevert(
-            InvestorDao.new(30, 20, validAddress, zeroAddress, validAddress),
+            InvestorDao.new(30, 20, 51, validAddress, zeroAddress, validAddress),
             'zero address detected'
         );
     });
 
     it('should NOT deploy if zero address for Uniswap Router', async () => {
         await expectRevert(
-            InvestorDao.new(30, 20, validAddress, validAddress, zeroAddress),
+            InvestorDao.new(30, 20, 51, validAddress, validAddress, zeroAddress),
             'zero address detected'
         );
     });
