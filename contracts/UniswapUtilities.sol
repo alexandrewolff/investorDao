@@ -10,13 +10,17 @@ contract UniswapUtilities {
         uniswapV2Router02 = _uniswapV2Router02;
     }
 
-    function _tradeToken(uint256 amountIn, address[] memory path) internal {
+    function _tradeToken(uint256 amountIn, address[] memory path) internal returns(uint256[] memory) {
         IERC20(path[0]).approve(uniswapV2Router02, amountIn);
         
         IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapV2Router02);
         
         uint256[] memory maxAmounts = uniswap.getAmountsOut(amountIn, path);
         
-        uniswap.swapExactTokensForTokens(amountIn, maxAmounts[path.length - 1], path, address(this), block.timestamp + 12);
+        return uniswap.swapExactTokensForTokens(amountIn,
+            maxAmounts[path.length - 1],
+            path, address(this),
+            block.timestamp + 12
+        );
     }
 }

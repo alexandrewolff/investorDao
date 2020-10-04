@@ -35,7 +35,7 @@ contract InvestorDao is UniswapUtilities {
     event LiquidityDivested(address user, uint256 idaoAmount, uint256 weiAmount);
     event ProposalCreated(address user, uint256 id, address token, uint256 amountToTrade, uint256 end);
     event InvestorVoted(address user, uint256 investorWeight, uint256 proposalId);
-    event ProposalExecuted(uint256 proposalId, ProposalType proposalType, address tokenBought, uint256 amountInvested);
+    event ProposalExecuted(uint256 proposalId, ProposalType proposalType, address tokenBought, uint256 amountInvested, uint256 amountReceived);
 
     modifier onlyInvestors() {
         require(IIDAO(idaoToken).balanceOf(msg.sender) > 0, "only investors");
@@ -146,17 +146,29 @@ contract InvestorDao is UniswapUtilities {
                 path[0] = daiToken;
                 path[1] = proposal.token;
 
-                emit ProposalExecuted(proposal.id, proposal.proposalType, proposal.token, proposal.amountToTrade);
+                uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, path);
 
-                _tradeToken(proposal.amountToTrade, path);
+                emit ProposalExecuted(proposal.id,
+                    proposal.proposalType,
+                    proposal.token,
+                    proposal.amountToTrade,
+                    amountsOut[1]
+                );
             } else if (proposal.proposalType == ProposalType.sell) {
                 address[] memory path = new address[](2);
                 path[0] = proposal.token;
                 path[1] = daiToken;
 
-                emit ProposalExecuted(proposal.id, proposal.proposalType, proposal.token, proposal.amountToTrade);
+                uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, path);
 
-                _tradeToken(proposal.amountToTrade, path);
+                availableFunds = availableFunds.add(amountsOut[1]);
+
+                emit ProposalExecuted(proposal.id,
+                    proposal.proposalType,
+                    proposal.token,
+                    proposal.amountToTrade,
+                    amountsOut[1]
+                );
             }
         } else availableFunds = availableFunds.add(proposal.amountToTrade);
     }
