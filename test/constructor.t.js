@@ -1,5 +1,3 @@
-// Test on local test network
-
 const { expectRevert } = require('@openzeppelin/test-helpers');
 const InvestorDao = artifacts.require('InvestorDao');
 

@@ -35,7 +35,13 @@ contract InvestorDao is UniswapUtilities {
     event LiquidityDivested(address user, uint256 idaoAmount, uint256 weiAmount);
     event ProposalCreated(address user, uint256 id, address token, uint256 amountToTrade, uint256 end);
     event InvestorVoted(address user, uint256 investorWeight, uint256 proposalId);
-    event ProposalExecuted(uint256 proposalId, ProposalType proposalType, address tokenBought, uint256 amountInvested, uint256 amountReceived);
+    event ProposalExecution(uint256 proposalId,
+        bool validated,
+        ProposalType proposalType,
+        address tokenBought,
+        uint256 amountInvested,
+        uint256 amountReceived
+    );
 
     modifier onlyInvestors() {
         require(IIDAO(idaoToken).balanceOf(msg.sender) > 0, "only investors");
@@ -87,10 +93,12 @@ contract InvestorDao is UniswapUtilities {
     }
 
     function createProposal(ProposalType proposalType, address token, uint256 amountToTrade) public onlyInvestors {
-        require(availableFunds >= amountToTrade, "not enough available funds");
         require(token != address(0), "zero address detected");
 
-        if (proposalType == ProposalType.sell) {
+        if (proposalType == ProposalType.buy) {
+            require(availableFunds >= amountToTrade, "not enough available funds");
+            availableFunds = availableFunds.sub(amountToTrade);
+        } else if (proposalType == ProposalType.sell) {
             uint256 tokensOwned = IERC20(token).balanceOf(address(this));
             require(amountToTrade <= tokensOwned, "not enough tokens to sell");
         }
@@ -107,8 +115,6 @@ contract InvestorDao is UniswapUtilities {
             end,
             false
         ));
-
-        availableFunds = availableFunds.sub(amountToTrade);
 
         emit ProposalCreated(msg.sender, nextId, token, amountToTrade, end);
     }
@@ -148,7 +154,8 @@ contract InvestorDao is UniswapUtilities {
 
                 uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, path);
 
-                emit ProposalExecuted(proposal.id,
+                emit ProposalExecution(proposal.id,
+                    true,
                     proposal.proposalType,
                     proposal.token,
                     proposal.amountToTrade,
@@ -163,13 +170,24 @@ contract InvestorDao is UniswapUtilities {
 
                 availableFunds = availableFunds.add(amountsOut[1]);
 
-                emit ProposalExecuted(proposal.id,
+                emit ProposalExecution(proposal.id,
+                    true,
                     proposal.proposalType,
                     proposal.token,
                     proposal.amountToTrade,
                     amountsOut[1]
                 );
             }
-        } else availableFunds = availableFunds.add(proposal.amountToTrade);
+        } else {
+            availableFunds = availableFunds.add(proposal.amountToTrade);
+
+            emit ProposalExecution(proposal.id,
+                    false,
+                    proposal.proposalType,
+                    proposal.token,
+                    proposal.amountToTrade,
+                    0
+            );
+        }
     }
 }

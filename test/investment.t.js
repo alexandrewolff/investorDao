@@ -1,5 +1,3 @@
-// Test on local test network
-
 const { expectRevert, time } = require('@openzeppelin/test-helpers');
 const TestToken = artifacts.require('TestToken');
 const IDAO = artifacts.require('IDAO');
@@ -18,9 +16,9 @@ contract('Investment', (accounts) => {
         await dai.mint(investor2, 1000);
         await dai.mint(investor3, 1000);
 
-        dai.approve(investorDao.address, 1000, { from: investor1});
-        dai.approve(investorDao.address, 1000, { from: investor2});
-        dai.approve(investorDao.address, 1000, { from: investor3});
+        dai.approve(investorDao.address, 1000, { from: investor1 });
+        dai.approve(investorDao.address, 1000, { from: investor2 });
+        dai.approve(investorDao.address, 1000, { from: investor3 });
     });
 
     it('should accept investments', async () => {

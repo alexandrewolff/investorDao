@@ -17,9 +17,11 @@ contract UniswapUtilities {
         
         uint256[] memory maxAmounts = uniswap.getAmountsOut(amountIn, path);
         
-        return uniswap.swapExactTokensForTokens(amountIn,
+        return uniswap.swapExactTokensForTokens(
+            amountIn,
             maxAmounts[path.length - 1],
-            path, address(this),
+            path,
+            address(this),
             block.timestamp + 12
         );
     }
