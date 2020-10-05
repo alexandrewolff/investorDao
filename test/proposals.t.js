@@ -60,7 +60,7 @@ contract('Proposals', (accounts) => {
     it('should NOT create a buy proposal if zero address for token', async () => {
         await expectRevert(
             investorDao.createProposal(0, zeroAddress, 400, { from: investor1 }),
-            'not enough available funds'
+            'zero address detected'
         );
     });
 

@@ -51,14 +51,14 @@ contract('Execute', (accounts) => {
         const finalWbtcBalance = await wbtc.balanceOf(investorDao.address);
         const Proposal = await investorDao.proposals(currentProposal);
         
-        currentProposal++;
-
         assert(finalDaiBalance.sub(initalDaiBalance).toNumber() === -100000, 'Wrong DAI balance');
         assert(finalWbtcBalance.sub(initalWbtcBalance).toNumber() > 0, 'Wrong WBTC balance');
         assert(Proposal.executed === true, 'Proposal state has not been updated');
     });
 
     it('should execute sell proposal', async () => {
+        currentProposal++;
+
         const initalDaiBalance = await dai.balanceOf(investorDao.address);
         const initalWbtcBalance = await wbtc.balanceOf(investorDao.address);
 
@@ -74,11 +74,50 @@ contract('Execute', (accounts) => {
         const finalDaiBalance = await dai.balanceOf(investorDao.address);
         const finalWbtcBalance = await wbtc.balanceOf(investorDao.address);
         const Proposal = await investorDao.proposals(currentProposal);
-        
-        currentProposal++;
-        
+                
         assert(finalDaiBalance.sub(initalDaiBalance).toNumber() > 0, 'Wrong DAI balance');
         assert(finalWbtcBalance.toNumber() === 0, 'Wrong WBTC balance');
         assert(Proposal.executed === true, 'Proposal state has not been updated');
+    });
+
+    it('should NOT execute proposal if already executed', async () => {
+        await expectRevert(
+            investorDao.executeProposal(currentProposal, { from: investor1 }), 
+            'cannot execute proposal already executed'
+        );
+    });
+
+    it('should NOT execute proposal if vote time not ended', async () => {
+        currentProposal++;
+
+        await investorDao.createProposal(0, wbtc.address, 100000, { from: investor2 });
+        await investorDao.vote(currentProposal, { from: investor2 });
+        await investorDao.vote(currentProposal, { from: investor3 });
+        
+        await expectRevert(
+            investorDao.executeProposal(currentProposal, { from: investor3 }), 
+            'cannot execute proposal before end date'
+        );
+    });
+
+    it('should NOT execute proposal if quorum not reached', async () => {
+        currentProposal++;
+
+        const initialAvailableFunds = await investorDao.availableFunds();
+        const initialWbtcBalance = await wbtc.balanceOf(investorDao.address);
+
+        const quorum = await investorDao.quorum();
+        await investorDao.createProposal(0, wbtc.address, 100000, { from: investor2 });
+        await investorDao.vote(currentProposal, { from: investor2 });
+
+        await time.increase(21);
+
+        await investorDao.executeProposal(currentProposal, { from: investor3 })
+
+        const finalAvailableFunds = await investorDao.availableFunds();
+        const finalWbtcBalance = await wbtc.balanceOf(investorDao.address);
+
+        assert(finalAvailableFunds.toNumber() === initialAvailableFunds.toNumber(), 'Wrong final available funds');
+        assert(finalWbtcBalance.toNumber() === initialWbtcBalance.toNumber(), 'Wrong final WBTC balance');
     });
 });
