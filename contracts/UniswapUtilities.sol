@@ -10,8 +10,12 @@ contract UniswapUtilities {
         uniswapV2Router02 = _uniswapV2Router02;
     }
 
-    function _tradeToken(uint256 amountIn, address[] memory path) internal returns(uint256[] memory) {
-        IERC20(path[0]).approve(uniswapV2Router02, amountIn);
+    function _tradeToken(uint256 amountIn, address token0, address token1) internal returns (uint256[] memory) {
+        address[] memory path = new address[](2);
+        path[0] = token0;
+        path[1] = token1;
+
+        IERC20(token0).approve(uniswapV2Router02, amountIn);
         
         IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapV2Router02);
         

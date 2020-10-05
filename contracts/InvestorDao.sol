@@ -12,20 +12,20 @@ contract InvestorDao is UniswapUtilities {
     address daiToken;
 
     uint256 public availableFunds;
-    uint256 public contributionEnd;
-    uint256 public voteTime;
-    uint256 public quorum;
+    uint24  public contributionEnd;
+    uint24  public voteTime;
+    uint8   public quorum;
     Proposal[] public proposals;
     
     enum ProposalType { buy, sell }
 
     struct Proposal {
-        uint256 id;
+        uint16 id;
+        uint40 end;
         ProposalType proposalType;
         address token;
         uint256 amountToTrade;
         uint256 votes;
-        uint256 end;
         bool executed;
     }
 
@@ -48,9 +48,10 @@ contract InvestorDao is UniswapUtilities {
         _;
     }
 
-    constructor(uint256 contributionTime,
-        uint256 _voteTime,
-        uint256 _quorum,
+    constructor(
+        uint24 contributionTime,
+        uint24 _voteTime,
+        uint8 _quorum,
         address _idaoToken,
         address _daiToken,
         address uniswapV2Router02
@@ -60,7 +61,7 @@ contract InvestorDao is UniswapUtilities {
         require(_daiToken != address(0), "zero address detected");
         require(uniswapV2Router02 != address(0), "zero address detected");
 
-        contributionEnd = block.timestamp + contributionTime;
+        contributionEnd = uint24(block.timestamp.add(contributionTime));
         voteTime = _voteTime;
         quorum = _quorum;
         idaoToken = _idaoToken;
@@ -68,7 +69,7 @@ contract InvestorDao is UniswapUtilities {
     }
 
     function invest(uint256 amount) external {
-        require(block.timestamp < contributionEnd, "cannot contribute after contributionEnd");
+        require(uint24(block.timestamp) < contributionEnd, "cannot contribute after contributionEnd");
 
         availableFunds = availableFunds.add(amount);
 
@@ -103,23 +104,23 @@ contract InvestorDao is UniswapUtilities {
             require(amountToTrade <= tokensOwned, "not enough tokens to sell");
         }
 
-        uint256 nextId = proposals.length;
-        uint256 end = block.timestamp + voteTime;
+        uint16 nextId = uint16(proposals.length);
+        uint40 end = uint40(block.timestamp.add(voteTime));
 
         proposals.push(Proposal(
             nextId,
+            end,
             proposalType,
             token,
             amountToTrade,
             0,
-            end,
             false
         ));
 
         emit ProposalCreated(msg.sender, nextId, token, amountToTrade, end);
     }
 
-    function getProposalsAmount() external view returns(uint256) {
+    function getProposalsAmount() external view returns (uint256) {
         return proposals.length;
     }
 
@@ -148,11 +149,7 @@ contract InvestorDao is UniswapUtilities {
 
         if (votesRate >= quorum) {
             if (proposal.proposalType == ProposalType.buy) {
-                address[] memory path = new address[](2);
-                path[0] = daiToken;
-                path[1] = proposal.token;
-
-                uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, path);
+                uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, daiToken, proposal.token);
 
                 emit ProposalExecution(proposal.id,
                     true,
@@ -162,11 +159,7 @@ contract InvestorDao is UniswapUtilities {
                     amountsOut[1]
                 );
             } else if (proposal.proposalType == ProposalType.sell) {
-                address[] memory path = new address[](2);
-                path[0] = proposal.token;
-                path[1] = daiToken;
-
-                uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, path);
+                uint256[] memory amountsOut = _tradeToken(proposal.amountToTrade, proposal.token, daiToken);
 
                 availableFunds = availableFunds.add(amountsOut[1]);
 
