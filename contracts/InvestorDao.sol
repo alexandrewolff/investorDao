@@ -61,6 +61,7 @@ contract InvestorDao is UniswapUtilities {
         require(_daiToken != address(0), "zero address detected");
         require(uniswapV2Router02 != address(0), "zero address detected");
 
+        availableFunds = 0;
         contributionEnd = uint24(block.timestamp.add(contributionTime));
         voteTime = _voteTime;
         quorum = _quorum;
@@ -93,7 +94,7 @@ contract InvestorDao is UniswapUtilities {
         IERC20(daiToken).transfer(msg.sender, daiOut);
     }
 
-    function createProposal(ProposalType proposalType, address token, uint256 amountToTrade) public onlyInvestors {
+    function createProposal(ProposalType proposalType, address token, uint256 amountToTrade) external onlyInvestors {
         require(token != address(0), "zero address detected");
 
         if (proposalType == ProposalType.buy) {

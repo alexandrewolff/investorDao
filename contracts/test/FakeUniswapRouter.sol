@@ -68,8 +68,8 @@ contract FakeUniswapRouter {
         require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
         (address token0, address token1) = sortTokens(path[0], path[1]);
         address pair0Addr = tokensToPair[token0][token1];
-        TestToken(path[0]).transferFrom(msg.sender, pair0Addr, amounts[0]);
+        TestToken(path[0]).transferFrom(to, pair0Addr, amounts[0]);
         FakeUniswapPair(pair0Addr).increaseReserve(path[0], amounts[0]);
-        FakeUniswapPair(pair0Addr).send(path[1], msg.sender, amounts[1]);
+        FakeUniswapPair(pair0Addr).send(path[1], to, amounts[1]);
     }
 }

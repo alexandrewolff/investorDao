@@ -100,6 +100,21 @@ contract('Execute', (accounts) => {
         );
     });
 
+    it('should NOT execute proposal if not an investor', async () => {
+        currentProposal++;
+
+        await investorDao.createProposal(0, wbtc.address, 100000, { from: investor2 });
+        await investorDao.vote(currentProposal, { from: investor2 });
+        await investorDao.vote(currentProposal, { from: investor3 });
+        
+        await time.increase(21);
+
+        await expectRevert(
+            investorDao.executeProposal(currentProposal, { from: noOne }), 
+            'only investors'
+        );
+    });
+
     it('should NOT execute proposal if quorum not reached', async () => {
         currentProposal++;
 
