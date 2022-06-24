@@ -1,109 +1,46 @@
-# InvestorDAO
+# Advanced Sample Hardhat Project
 
-InvestorDAO is an Ethereum smart contract that enables users to invest in an investment fund publicly governed by its investors.
+This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
 
-They can invest DAI in the DAO for a specific amount of time and receive an IDAO ERC20 token for each one of them that represents a share.
+The project comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts. It also comes with a variety of other tools, preconfigured to work with the project code.
 
-Investors are then able to make investment proposals for a specific amount and ERC20 token. If accepted by the community, the amount of DAI voted will be traded against the ERC20 thanks to a UniswapV2 integration and detained by the DAO. The investors can later make a proposal to trade the ERC20 tokens back against DAI.
+Try running some of the following tasks:
 
-The IDAO value subsequently represents the total value of ERC20 tokens detained by the DAO. They can be traded or used to redeem DAI tokens, depending on the amount available.
+```shell
+npx hardhat accounts
+npx hardhat compile
+npx hardhat clean
+npx hardhat test
+npx hardhat node
+npx hardhat help
+REPORT_GAS=true npx hardhat test
+npx hardhat coverage
+npx hardhat run scripts/deploy.ts
+TS_NODE_FILES=true npx ts-node scripts/deploy.ts
+npx eslint '**/*.{js,ts}'
+npx eslint '**/*.{js,ts}' --fix
+npx prettier '**/*.{json,sol,md}' --check
+npx prettier '**/*.{json,sol,md}' --write
+npx solhint 'contracts/**/*.sol'
+npx solhint 'contracts/**/*.sol' --fix
+```
 
-Next step will be to implement Aave and Compound integration to offer the possibility to invest the unused tokens.
+# Etherscan verification
 
-### Test instance
+To try out Etherscan verification, you first need to deploy a contract to an Ethereum network that's supported by Etherscan, such as Ropsten.
 
-You can try the protocol on the ropsten testnet at this address : 0xefb920E1fDBeE8991Ea96D2126623Ee4C63dD017 [See on Etherscan](https://ropsten.etherscan.io/address/0xefb920E1fDBeE8991Ea96D2126623Ee4C63dD017#contracts)
+In this project, copy the .env.example file to a file named .env, and then edit it to fill in the details. Enter your Etherscan API key, your Ropsten node URL (eg from Alchemy), and the private key of the account which will send the deployment transaction. With a valid .env file in place, first deploy your contract:
 
-Contribute time limit has been bypassed on this demo to enable new participants at any time.
-To invest in the DAO, you will need [test DAI from Aave](https://testnet.aave.com/faucet/DAI-0xf80a32a835f79d7787e8a8ee5721d0feafd781080x1c8756fd2b28e9426cdbdcc7e3c4d64fa9a54728).
+```shell
+hardhat run --network ropsten scripts/deploy.ts
+```
 
-The IDAO token address is : 0x94F426186aAC05CCF2aC637299dAE65116058a64 [See on Etherscan](https://ropsten.etherscan.io/address/0x94F426186aAC05CCF2aC637299dAE65116058a64#contracts)
+Then, copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
 
+```shell
+npx hardhat verify --network ropsten DEPLOYED_CONTRACT_ADDRESS "Hello, Hardhat!"
+```
 
-## Contracts
+# Performance optimizations
 
-The protocol is currently made of three contracts :
-
-* IDAO.sol, the ERC20 token that represents the shares
-* InvestorDao.sol, the main contract that handles the investments, IDAO generation & proposals
-* UniswapUtilities.sol, an heritage for InvestorDao.sol that provides a function to run swaps
-
-## InvestorDao interface
-
-**availableFunds() view returns (uint256)**
-
-Returns the DAO's balance of DAI less the reserved for proposal amount.
-
-**contributionEnd() view returns (uint24)**
-
-Returns the timestamp after which no one can invest in the DAO anymore.
-
-**voteTime() view returns (uint24)**
-
-Returns the amount of seconds proposals are open for votes.
-
-**quorum() view returns (uint8)**
-
-Returns the percentage of acceptance need for a proposal to be executable.
-
-**getProposalsAmount() view returns (uint256)**
-
-Returns the amount of proposals that has been created so far.
-
-**invest(uint256 amount)**
-
-Enables to deposit DAI during the investment time and get IDAO in return. Emits a "LiquidityInvested" event.
-
-**divest(uint256 idaoAmount)**
-
-Enables to withdraw DAI in exchange of IDAO. The amount of DAI received depends on the amount of available funds. Emits a "LiquidityDivested" event.
-
-**createProposal(ProposalType proposalType, address token, uint256 amountToTrade)**
-
-Enables to create a proposal. Requires to be an investor. Emits a "ProposalCreated" event.
-
-**vote(uint256 proposalId)**
-
-Enables to vote for a proposal. The vote is weighted, the IDAO the voter owns the more weight he has. Requires to be an investor. Emits a "InvestorVoted" event.
-
-**executeProposal(uint256 proposalId)**
-
-Enables to trigger the buy or sell once the vote time is over and the quorum is reached, or to simply free the reserved funds if the quorum is not reached. Requires to be an investor. Emits a "ProposalExecution" event.
-
-## Events
-
-* LiquidityInvested(address user, uint256 daiAmount)
-* LiquidityDivested(address user, uint256 idaoAmount, uint256 weiAmount)
-* ProposalCreated(address user, uint256 id, address token, uint256 amountToTrade, uint256 end)
-* InvestorVoted(address user, uint256 investorWeight, uint256 proposalId)
-* ProposalExecution(uint256 proposalId, bool validated, ProposalType proposalType, address tokenBought, uint256 amountInvested, uint256 amountReceived)
-
-## Installation
-
-This is a truffle environment. Use
-
-    npm i
-
-to install all the dependencies, then
-
-    truffle compile
-
-to compile the contracts.
-
-You can then go to truffle's private blockchain with
-
-    truffle develop
-
-and deploy the contract with
-
-    migrate
-
-The protocol is now available in the console with web3 or @truffle/contract library.
-
-## Testing
-
-Use
-
-    truffle test
-
-to run the tests in the test folder.
+For faster runs of your tests and scripts, consider skipping ts-node's type checking by setting the environment variable `TS_NODE_TRANSPILE_ONLY` to `1` in hardhat's environment. For more details see [the documentation](https://hardhat.org/guides/typescript.html#performance-optimizations).
