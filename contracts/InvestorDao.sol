@@ -4,14 +4,15 @@ pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./UniswapUtilities.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IIDAO.sol";
 
-contract InvestorDao is UniswapUtilities {
+contract InvestorDao {
     using SafeMath for uint256;
 
     address public idao;
     address public dai;
+    address public uniswapRouter;
 
     uint256 public availableFunds;
     uint24 public contributionEnd;
@@ -78,17 +79,18 @@ contract InvestorDao is UniswapUtilities {
         uint8 _quorum,
         address _idaoToken,
         address _daiToken,
-        address uniswapV2Router02
-    ) public UniswapUtilities(uniswapV2Router02) {
+        address _uniswapRouter
+    ) public {
         require(_idaoToken != address(0), "zero address detected");
         require(_daiToken != address(0), "zero address detected");
-        require(uniswapV2Router02 != address(0), "zero address detected");
+        require(_uniswapRouter != address(0), "zero address detected");
 
         contributionEnd = uint24(block.timestamp.add(contributionTime));
         voteTime = _voteTime;
         quorum = _quorum;
         idao = _idaoToken;
         dai = _daiToken;
+        uniswapRouter = _uniswapRouter;
     }
 
     function invest(uint256 amount) external {
@@ -190,7 +192,7 @@ contract InvestorDao is UniswapUtilities {
 
         if (votesRate >= quorum) {
             if (proposal.proposalType == ProposalType.BUY) {
-                uint256[] memory amountsOut = _tradeToken(
+                uint256[] memory amountsOut = trade(
                     proposal.amountToTrade,
                     dai,
                     proposal.token
@@ -205,7 +207,7 @@ contract InvestorDao is UniswapUtilities {
                     amountsOut[1]
                 );
             } else if (proposal.proposalType == ProposalType.SELL) {
-                uint256[] memory amountsOut = _tradeToken(
+                uint256[] memory amountsOut = trade(
                     proposal.amountToTrade,
                     proposal.token,
                     dai
@@ -234,5 +236,31 @@ contract InvestorDao is UniswapUtilities {
                 0
             );
         }
+    }
+
+    function trade(
+        uint256 amountIn,
+        address token0,
+        address token1
+    ) private returns (uint256[] memory) {
+        address[] memory path = new address[](2);
+        path[0] = token0;
+        path[1] = token1;
+
+        IERC20(token0).approve(uniswapRouter, amountIn);
+
+        IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapRouter);
+
+        uint256[] memory maxAmounts = IUniswapV2Router02(uniswapRouter)
+            .getAmountsOut(amountIn, path);
+
+        return
+            uniswap.swapExactTokensForTokens(
+                amountIn,
+                maxAmounts[path.length - 1],
+                path,
+                address(this),
+                block.timestamp + 12
+            );
     }
 }

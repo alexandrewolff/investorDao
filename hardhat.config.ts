@@ -12,8 +12,14 @@ dotenv.config();
 const config: HardhatUserConfig = {
   solidity: '0.6.12',
   networks: {
-    ropsten: {
-      url: process.env.ROPSTEN_URL || '',
+    hardhat: {
+      forking: {
+        url: process.env.MAINNET_URL || '',
+        blockNumber: 15018565,
+      },
+    },
+    goerli: {
+      url: process.env.GOERLI_URL || '',
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
   },
