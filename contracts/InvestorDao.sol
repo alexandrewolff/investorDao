@@ -10,18 +10,21 @@ import "./interfaces/IIDAO.sol";
 contract InvestorDao is UniswapUtilities {
     using SafeMath for uint256;
 
-    address idaoToken;
-    address daiToken;
+    address public idao;
+    address public dai;
 
     uint256 public availableFunds;
     uint24 public contributionEnd;
     uint24 public voteTime;
     uint8 public quorum;
+
     Proposal[] public proposals;
 
+    mapping(address => mapping(uint256 => bool)) public voted;
+
     enum ProposalType {
-        buy,
-        sell
+        BUY,
+        SELL
     }
 
     struct Proposal {
@@ -33,8 +36,6 @@ contract InvestorDao is UniswapUtilities {
         uint256 votes;
         bool executed;
     }
-
-    mapping(address => mapping(uint256 => bool)) public voted;
 
     event LiquidityInvested(address user, uint256 daiAmount);
     event LiquidityDivested(
@@ -64,7 +65,10 @@ contract InvestorDao is UniswapUtilities {
     );
 
     modifier onlyInvestors() {
-        require(IIDAO(idaoToken).balanceOf(msg.sender) > 0, "only investors");
+        require(
+            IIDAO(idao).balanceOf(msg.sender) > 0,
+            "InvestorDao: access restrictedd to investors"
+        );
         _;
     }
 
@@ -80,12 +84,11 @@ contract InvestorDao is UniswapUtilities {
         require(_daiToken != address(0), "zero address detected");
         require(uniswapV2Router02 != address(0), "zero address detected");
 
-        availableFunds = 0;
         contributionEnd = uint24(block.timestamp.add(contributionTime));
         voteTime = _voteTime;
         quorum = _quorum;
-        idaoToken = _idaoToken;
-        daiToken = _daiToken;
+        idao = _idaoToken;
+        dai = _daiToken;
     }
 
     function invest(uint256 amount) external {
@@ -98,22 +101,24 @@ contract InvestorDao is UniswapUtilities {
 
         emit LiquidityInvested(msg.sender, amount);
 
-        IERC20(daiToken).transferFrom(msg.sender, address(this), amount);
-        IIDAO(idaoToken).mint(msg.sender, amount); // 1 DAI invested = 1 IDAO received
+        IERC20(dai).transferFrom(msg.sender, address(this), amount);
+        IIDAO(idao).mint(msg.sender, amount); // 1 DAI invested = 1 IDAO received
     }
 
     function divest(uint256 idaoAmount) external {
-        IIDAO idao = IIDAO(idaoToken);
+        IIDAO _idao = IIDAO(idao);
 
-        require(idao.balanceOf(msg.sender) >= idaoAmount, "not enough IDAO");
+        require(_idao.balanceOf(msg.sender) >= idaoAmount, "not enough IDAO");
 
-        uint256 daiOut = availableFunds.mul(idaoAmount).div(idao.totalSupply());
+        uint256 daiOut = availableFunds.mul(idaoAmount).div(
+            _idao.totalSupply()
+        );
         availableFunds = availableFunds.sub(daiOut);
 
         emit LiquidityDivested(msg.sender, idaoAmount, daiOut);
 
-        idao.burn(msg.sender, idaoAmount);
-        IERC20(daiToken).transfer(msg.sender, daiOut);
+        _idao.burn(msg.sender, idaoAmount);
+        IERC20(dai).transfer(msg.sender, daiOut);
     }
 
     function createProposal(
@@ -123,13 +128,13 @@ contract InvestorDao is UniswapUtilities {
     ) external onlyInvestors {
         require(token != address(0), "zero address detected");
 
-        if (proposalType == ProposalType.buy) {
+        if (proposalType == ProposalType.BUY) {
             require(
                 availableFunds >= amountToTrade,
                 "not enough available funds"
             );
             availableFunds = availableFunds.sub(amountToTrade);
-        } else if (proposalType == ProposalType.sell) {
+        } else if (proposalType == ProposalType.SELL) {
             uint256 tokensOwned = IERC20(token).balanceOf(address(this));
             require(amountToTrade <= tokensOwned, "not enough tokens to sell");
         }
@@ -150,7 +155,7 @@ contract InvestorDao is UniswapUtilities {
 
     function vote(uint256 proposalId) external onlyInvestors {
         Proposal storage proposal = proposals[proposalId];
-        uint256 investorWeight = IIDAO(idaoToken).balanceOf(msg.sender);
+        uint256 investorWeight = IIDAO(idao).balanceOf(msg.sender);
 
         require(
             voted[msg.sender][proposalId] == false,
@@ -169,7 +174,7 @@ contract InvestorDao is UniswapUtilities {
 
     function executeProposal(uint256 proposalId) external onlyInvestors {
         Proposal storage proposal = proposals[proposalId];
-        uint256 idaoTotalSupply = IIDAO(idaoToken).totalSupply();
+        uint256 idaoTotalSupply = IIDAO(idao).totalSupply();
         uint256 votesRate = proposal.votes.mul(100).div(idaoTotalSupply);
 
         require(
@@ -184,10 +189,10 @@ contract InvestorDao is UniswapUtilities {
         proposal.executed = true;
 
         if (votesRate >= quorum) {
-            if (proposal.proposalType == ProposalType.buy) {
+            if (proposal.proposalType == ProposalType.BUY) {
                 uint256[] memory amountsOut = _tradeToken(
                     proposal.amountToTrade,
-                    daiToken,
+                    dai,
                     proposal.token
                 );
 
@@ -199,11 +204,11 @@ contract InvestorDao is UniswapUtilities {
                     proposal.amountToTrade,
                     amountsOut[1]
                 );
-            } else if (proposal.proposalType == ProposalType.sell) {
+            } else if (proposal.proposalType == ProposalType.SELL) {
                 uint256[] memory amountsOut = _tradeToken(
                     proposal.amountToTrade,
                     proposal.token,
-                    daiToken
+                    dai
                 );
 
                 availableFunds = availableFunds.add(amountsOut[1]);

@@ -20,20 +20,8 @@ describe('IDAO', () => {
     [owner, dao, user] = await getSigners();
 
     const IDAO = await getContractFactory('IDAO');
-    idao = await IDAO.deploy(dao.address);
-  });
-
-  describe('contructor', () => {
-    it('should correctly set dao address', async () => {
-      expect(await idao.dao()).equal(dao.address);
-    });
-
-    it('should not accept zero address as constructor param', async () => {
-      const IDAO = await getContractFactory('IDAO');
-      await expect(IDAO.deploy(AddressZero)).to.be.revertedWith(
-        'IDAO: zero address provided',
-      );
-    });
+    idao = await IDAO.deploy();
+    await idao.transferOwnership(dao.address);
   });
 
   describe('mint', () => {
@@ -53,7 +41,7 @@ describe('IDAO', () => {
     it('should not mint if not from dao', async () => {
       await expect(
         idao.connect(user).mint(user.address, 1000),
-      ).to.be.revertedWith('IDAO: access restricted to DAO');
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
 
@@ -78,7 +66,7 @@ describe('IDAO', () => {
     it('should not burn if not from dao', async () => {
       await expect(
         idao.connect(user).burn(user.address, 1000),
-      ).to.be.revertedWith('IDAO: access restricted to DAO');
+      ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
 });

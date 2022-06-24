@@ -10,4 +10,4 @@ cache
 .env
 coverage
 .DS_Store
-typechain-types
+typechain

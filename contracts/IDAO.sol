@@ -3,25 +3,16 @@
 pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract IDAO is ERC20 {
-    address public dao;
+contract IDAO is ERC20, Ownable {
+    constructor() public ERC20("IDAO", "IDAO") {}
 
-    modifier onlyDao() {
-        require(msg.sender == dao, "IDAO: access restricted to DAO");
-        _;
-    }
-
-    constructor(address _dao) public ERC20("IDAO", "IDAO") {
-        require(_dao != address(0), "IDAO: zero address provided");
-        dao = _dao;
-    }
-
-    function mint(address to, uint256 amount) external onlyDao {
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
 
-    function burn(address to, uint256 amount) external onlyDao {
+    function burn(address to, uint256 amount) external onlyOwner {
         _burn(to, amount);
     }
 }
