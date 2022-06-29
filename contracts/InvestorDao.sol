@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IIDAO.sol";
 
+import "hardhat/console.sol";
+
 contract InvestorDao {
     using SafeMath for uint256;
 
@@ -15,7 +17,7 @@ contract InvestorDao {
     address public uniswapRouter;
 
     uint256 public availableFunds;
-    uint24 public contributionEnd;
+    uint32 public contributionEnd; // changed from 24 to 32
     uint24 public voteTime;
     uint8 public quorum;
 
@@ -39,7 +41,7 @@ contract InvestorDao {
     }
 
     event LiquidityInvested(address user, uint256 daiAmount);
-    event LiquidityDivested(
+    event LiquidityWithdrew(
         address user,
         uint256 idaoAmount,
         uint256 weiAmount
@@ -85,7 +87,7 @@ contract InvestorDao {
         require(_daiToken != address(0), "zero address detected");
         require(_uniswapRouter != address(0), "zero address detected");
 
-        contributionEnd = uint24(block.timestamp.add(contributionTime));
+        contributionEnd = uint32(block.timestamp.add(contributionTime));
         voteTime = _voteTime;
         quorum = _quorum;
         idao = _idaoToken;
@@ -95,32 +97,31 @@ contract InvestorDao {
 
     function invest(uint256 amount) external {
         require(
-            uint24(block.timestamp) < contributionEnd,
-            "cannot contribute after contributionEnd"
+            block.timestamp < contributionEnd,
+            "InvestorDao: cannot contribute after contributionEnd"
         );
 
         availableFunds = availableFunds.add(amount);
 
-        emit LiquidityInvested(msg.sender, amount);
-
         IERC20(dai).transferFrom(msg.sender, address(this), amount);
         IIDAO(idao).mint(msg.sender, amount); // 1 DAI invested = 1 IDAO received
+
+        emit LiquidityInvested(msg.sender, amount);
     }
 
-    function divest(uint256 idaoAmount) external {
+    function withdraw(uint256 idaoAmount) external {
         IIDAO _idao = IIDAO(idao);
 
-        require(_idao.balanceOf(msg.sender) >= idaoAmount, "not enough IDAO");
-
+        // Computes the ratio of available funds the user is entitled to
         uint256 daiOut = availableFunds.mul(idaoAmount).div(
             _idao.totalSupply()
         );
         availableFunds = availableFunds.sub(daiOut);
 
-        emit LiquidityDivested(msg.sender, idaoAmount, daiOut);
-
         _idao.burn(msg.sender, idaoAmount);
         IERC20(dai).transfer(msg.sender, daiOut);
+
+        emit LiquidityWithdrew(msg.sender, idaoAmount, daiOut);
     }
 
     function createProposal(
@@ -250,10 +251,8 @@ contract InvestorDao {
         IERC20(token0).approve(uniswapRouter, amountIn);
 
         IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapRouter);
-
         uint256[] memory maxAmounts = IUniswapV2Router02(uniswapRouter)
             .getAmountsOut(amountIn, path);
-
         return
             uniswap.swapExactTokensForTokens(
                 amountIn,

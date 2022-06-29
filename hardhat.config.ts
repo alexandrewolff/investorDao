@@ -9,8 +9,20 @@ import 'solidity-coverage';
 
 dotenv.config();
 
+// Macros
+const showGasReporter = true;
+const enableOptimizer = true;
+
 const config: HardhatUserConfig = {
-  solidity: '0.6.12',
+  solidity: {
+    version: '0.6.12',
+    settings: {
+      optimizer: {
+        enabled: showGasReporter || enableOptimizer,
+        runs: 999999,
+      },
+    },
+  },
   networks: {
     hardhat: {
       forking: {
@@ -24,8 +36,9 @@ const config: HardhatUserConfig = {
     },
   },
   gasReporter: {
-    enabled: process.env.REPORT_GAS !== undefined,
+    enabled: showGasReporter,
     currency: 'USD',
+    coinmarketcap: process.env.COINMARKETCAP_API_KEY,
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
