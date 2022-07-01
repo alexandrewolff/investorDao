@@ -1,5 +1,5 @@
 import { network } from 'hardhat';
-import { BigNumber } from 'ethers';
+import { BigNumberish } from 'ethers';
 
 export const impersonate = async (account: string) => {
   await network.provider.request({
@@ -8,6 +8,6 @@ export const impersonate = async (account: string) => {
   });
 };
 
-export const setTimestamp = async (timestamp: number | BigNumber) => {
+export const setTimestamp = async (timestamp: BigNumberish) => {
   await network.provider.send('evm_setNextBlockTimestamp', [timestamp]);
 };
