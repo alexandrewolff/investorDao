@@ -4,6 +4,7 @@ pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IIDAO.sol";
 
@@ -11,20 +12,21 @@ import "hardhat/console.sol";
 
 contract InvestorDao {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     address public immutable idao;
     address public immutable dai;
+    address public immutable weth;
     address public immutable uniswapRouter;
 
     uint32 public immutable contributionEnd; // changed from 24 to 32
     uint24 public immutable voteTime;
-    // uint256 public immutable gracePeriod;
-    // uint256 public immutable proposalValidity;
-    uint8 public immutable quorum;
+    uint256 public immutable proposalValidity;
+    uint256 private immutable sendEthToExecutorMaxGas;
 
     Proposal[] public proposals;
 
-    enum ProposalType {
+    enum Direction {
         BUY,
         SELL
     }
@@ -35,7 +37,7 @@ contract InvestorDao {
     }
 
     struct Proposal {
-        ProposalType proposalType;
+        Direction direction;
         address token;
         uint256 amountIn;
         uint40 voteEnd;
@@ -53,7 +55,7 @@ contract InvestorDao {
     event ProposalCreated(
         uint256 id,
         address proposer,
-        ProposalType proposalType,
+        Direction direction,
         address token,
         uint256 amountIn
     );
@@ -63,33 +65,38 @@ contract InvestorDao {
         Vote answer,
         uint256 investorWeight
     );
-    event ProposalExecution(
-        uint256 proposalId,
-        bool validated,
-        ProposalType proposalType,
-        address tokenBought,
-        uint256 amountInvested,
-        uint256 amountReceived
-    );
+    event ProposalExecuted(uint256 proposalId);
+
+    modifier onlyInvestors() {
+        require(
+            IIDAO(idao).balanceOf(msg.sender) > 0,
+            "InvestorDao: access restrictedd to investors"
+        );
+        _;
+    }
 
     constructor(
         uint24 contributionTime,
         uint24 _voteTime,
-        uint8 _quorum,
-        address _idaoToken,
-        address _daiToken,
-        address _uniswapRouter
+        uint256 _proposalValidity,
+        address _idao,
+        address _dai,
+        address _weth,
+        address _uniswapRouter,
+        uint256 _sendEthToExecutorMaxPrice
     ) public {
-        require(_idaoToken != address(0), "zero address detected");
-        require(_daiToken != address(0), "zero address detected");
+        require(_idao != address(0), "zero address detected");
+        require(_dai != address(0), "zero address detected");
         require(_uniswapRouter != address(0), "zero address detected");
 
         contributionEnd = uint32(block.timestamp.add(contributionTime));
         voteTime = _voteTime;
-        quorum = _quorum;
-        idao = _idaoToken;
-        dai = _daiToken;
+        proposalValidity = _proposalValidity;
+        idao = _idao;
+        dai = _dai;
+        weth = _weth;
         uniswapRouter = _uniswapRouter;
+        sendEthToExecutorMaxGas = _sendEthToExecutorMaxPrice;
     }
 
     function getProposalsAmount() external view returns (uint256) {
@@ -124,7 +131,7 @@ contract InvestorDao {
     }
 
     function createProposal(
-        ProposalType proposalType,
+        Direction direction,
         address token,
         uint256 amountIn
     ) external {
@@ -135,7 +142,7 @@ contract InvestorDao {
         require(token != address(0), "InvestorDao: zero address provided");
         proposals.push(
             Proposal(
-                proposalType,
+                direction,
                 token,
                 amountIn,
                 uint40(block.timestamp.add(voteTime)),
@@ -147,18 +154,15 @@ contract InvestorDao {
             // Cannot underflow since a proposition will always be pushed before
             proposals.length - 1,
             msg.sender,
-            proposalType,
+            direction,
             token,
             amountIn
         );
     }
 
-    function vote(uint256 proposalId, Vote answer) external {
-        require(
-            proposalId < proposals.length,
-            "InvestorDao: proposal does not exist"
-        );
-        Proposal storage proposal = proposals[proposalId];
+    function voteProposal(uint256 id, Vote answer) external {
+        require(id < proposals.length, "InvestorDao: proposal does not exist");
+        Proposal storage proposal = proposals[id];
         require(
             proposal.voted[msg.sender] == false,
             "InvestorDao: investor already voted"
@@ -175,72 +179,45 @@ contract InvestorDao {
             proposal.yesVotes = proposal.yesVotes.add(investorWeight);
         else proposal.noVotes = proposal.noVotes.add(investorWeight);
 
-        emit InvestorVoted(proposalId, msg.sender, answer, investorWeight);
+        emit InvestorVoted(id, msg.sender, answer, investorWeight);
     }
 
-    // function executeProposal(uint256 proposalId) external onlyInvestors {
-    //     Proposal storage proposal = proposals[proposalId];
-    //     uint256 idaoTotalSupply = IIDAO(idao).totalSupply();
-    //     uint256 votesRate = proposal.votes.mul(100).div(idaoTotalSupply);
+    function executeProposal(uint256 id) external {
+        uint256 startGas = gasleft();
 
-    //     require(
-    //         block.timestamp >= proposal.end,
-    //         "cannot execute proposal before end date"
-    //     );
-    //     require(
-    //         proposal.executed == false,
-    //         "cannot execute proposal already executed"
-    //     );
+        require(id < proposals.length, "InvestorDao: proposal does not exist");
 
-    //     proposal.executed = true;
+        Proposal storage proposal = proposals[id];
+        require(
+            block.timestamp > proposal.voteEnd,
+            "InvestorDao: cannot execute proposal before end of vote"
+        );
+        require(
+            block.timestamp < proposal.voteEnd + proposalValidity,
+            "InvestorDao: proposal expired"
+        );
+        require(
+            proposal.yesVotes > proposal.noVotes,
+            "InvestorDao: proposal refused"
+        );
 
-    //     if (votesRate >= quorum) {
-    //         if (proposal.proposalType == ProposalType.BUY) {
-    //             uint256[] memory amountsOut = trade(
-    //                 proposal.amountIn,
-    //                 dai,
-    //                 proposal.token
-    //             );
+        if (proposal.direction == Direction.BUY) {
+            trade(proposal.amountIn, dai, proposal.token);
+        } else {
+            trade(proposal.amountIn, proposal.token, dai);
+        }
 
-    //             emit ProposalExecution(
-    //                 proposal.id,
-    //                 true,
-    //                 proposal.proposalType,
-    //                 proposal.token,
-    //                 proposal.amountIn,
-    //                 amountsOut[1]
-    //             );
-    //         } else if (proposal.proposalType == ProposalType.SELL) {
-    //             uint256[] memory amountsOut = trade(
-    //                 proposal.amountIn,
-    //                 proposal.token,
-    //                 dai
-    //             );
+        delete proposals[id];
+        emit ProposalExecuted(id);
 
-    //             availableFunds = availableFunds.add(amountsOut[1]);
+        IERC20(dai).safeTransfer(msg.sender, 100 ether);
 
-    //             emit ProposalExecution(
-    //                 proposal.id,
-    //                 true,
-    //                 proposal.proposalType,
-    //                 proposal.token,
-    //                 proposal.amountIn,
-    //                 amountsOut[1]
-    //             );
-    //         }
-    //     } else {
-    //         availableFunds = availableFunds.add(proposal.amountIn);
+        uint256 endGas = gasleft();
 
-    //         emit ProposalExecution(
-    //             proposal.id,
-    //             false,
-    //             proposal.proposalType,
-    //             proposal.token,
-    //             proposal.amountIn,
-    //             0
-    //         );
-    //     }
-    // }
+        sendEthToExecutor(
+            (startGas.sub(endGas).add(sendEthToExecutorMaxGas)).mul(tx.gasprice)
+        );
+    }
 
     function trade(
         uint256 amountIn,
@@ -256,13 +233,31 @@ contract InvestorDao {
         IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapRouter);
         uint256[] memory maxAmounts = IUniswapV2Router02(uniswapRouter)
             .getAmountsOut(amountIn, path);
-        return
-            uniswap.swapExactTokensForTokens(
-                amountIn,
-                maxAmounts[path.length - 1],
-                path,
-                address(this),
-                block.timestamp + 12
-            );
+
+        uniswap.swapExactTokensForTokens(
+            amountIn,
+            maxAmounts[path.length - 1],
+            path,
+            address(this),
+            block.timestamp + 12
+        );
+    }
+
+    function sendEthToExecutor(uint256 amount) private {
+        address[] memory path = new address[](2);
+        path[0] = dai;
+        path[1] = weth;
+
+        IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapRouter);
+        uint256[] memory amountInMax = uniswap.getAmountsIn(amount, path);
+        IERC20(dai).approve(uniswapRouter, amountInMax[0]);
+
+        uniswap.swapTokensForExactETH(
+            amount,
+            amountInMax[0],
+            path,
+            msg.sender,
+            block.timestamp + 12
+        );
     }
 }
