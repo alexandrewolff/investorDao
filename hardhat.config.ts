@@ -10,7 +10,7 @@ import 'solidity-coverage';
 dotenv.config();
 
 // Macros
-const showGasReporter = false;
+const showGasReporter = true;
 const enableOptimizer = true;
 
 const config: HardhatUserConfig = {

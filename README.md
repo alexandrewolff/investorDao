@@ -1,46 +1,169 @@
-# Advanced Sample Hardhat Project
+# InvestorDAO
 
-This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
+InvestorDAO is a protocol that enables users to invest in an investment fund publicly governed by its investors.
 
-The project comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts. It also comes with a variety of other tools, preconfigured to work with the project code.
+They can invest DAI in the DAO and receive IDAO tokens that represents their share in the fund.
 
-Try running some of the following tasks:
+Investors are then able to make investment proposals to swap the DAI in the fund for another token. If accepted by the community, the amount of DAI voted will be traded against the token thanks to a UniswapV2 integration and then detained by the DAO. The investors can later make a proposal to trade the tokens back against DAI.
 
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-npx hardhat help
-REPORT_GAS=true npx hardhat test
-npx hardhat coverage
-npx hardhat run scripts/deploy.ts
-TS_NODE_FILES=true npx ts-node scripts/deploy.ts
-npx eslint '**/*.{js,ts}'
-npx eslint '**/*.{js,ts}' --fix
-npx prettier '**/*.{json,sol,md}' --check
-npx prettier '**/*.{json,sol,md}' --write
-npx solhint 'contracts/**/*.sol'
-npx solhint 'contracts/**/*.sol' --fix
+The IDAO tokens subsequently represent the total value of all tokens detained by the DAO. They can be traded or used to redeem DAI tokens, depending on the amount available.
+Considering that the DAO's funds will be invested most of the time, withdrawing DAI will always be done at the expense of a premium. Thus, the point is to rather trade the IDAO token for a price that depends on the token basket in the DAO.
+
+## Contracts
+
+The protocol is currently made of three contracts :
+
+- IDAO.sol, the ERC20 token that represents the shares
+- InvestorDao.sol, the main contract that handles the investments, IDAO generation & proposals
+
+## InvestorDao
+
+### Constructor
+
+The constructor the the InvestorDao contract expects the following parameters.
+
+`uint256 contributionTime` : number of seconds while the investment in the DAO will be open, starting from the moment the contract is deployed
+
+`uint256 _voteTime` : number of seconds while the vote for proposals will be open
+
+`uint256 _proposalValidity` : number of seconds while the proposal will be executable after vote time ended
+
+`address _idao` : address of the IDAO token
+
+`address _dai` : address of the DAI token
+
+`address _weth` : address of the WETH token
+
+`address _uniswapRouter` : address of the AMM router token (can be any fork of Uniswap)
+
+`uint256 _sendEthToExecutorGas` : gas consumed by the `sendEthToExecutor` function. Can be approximative since the shift in price is likely to be compensated by the DAI reward
+
+## Interface
+
+```
+idao() view returns (address)
+```
+
+Returns the address of the IDAO token used by the contract.
+
+```
+dai() view returns (address)
+```
+
+Returns the address of the DAI token used by the contract.
+
+```
+weth() view returns (address)
+```
+
+Returns the address of the WETH token used by the contract.
+
+```
+uniswapRouter() view returns (address)
+```
+
+Returns the address of the AMM router used by the contract.
+
+```
+contributionEnd() view returns (uint256)
+```
+
+Returns the timestamp after which no one can invest in the DAO anymore.
+
+```
+voteTime() view returns (uint256)
+```
+
+Returns the amount of seconds proposals are open for votes.
+
+```
+proposalValidity() view returns (uint256)
+```
+
+Returns the amount of seconds proposals are open for execution after voting period.
+
+```
+proposals(uint256 id) view returns (Proposal)
+```
+
+Returns data about a specific proposal.
+
+```
+getProposalsAmount() view returns (uint256)
+```
+
+Returns the amount of proposals that has been created so far.
+
+```
+invest(uint256 amount)
+```
+
+Enables to deposit DAI during the investment time and get IDAO in return. Emits a "LiquidityInvested" event.
+
+```
+withdraw(uint256 idaoAmount)
+```
+
+Enables to withdraw DAI in exchange of IDAO. The amount of DAI received depends on the amount that is available at the moment. Emits a "LiquidityWithdrew" event.
+
+```
+createProposal(address[] memory path, uint256 amountIn)
+```
+
+Enables to create a proposal. Requires to be an investor. Emits a "ProposalCreated" event.
+
+```
+voteProposal(uint256 id, Vote answer)
+```
+
+Enables to vote for a proposal. The vote is weighted, each IDAO the voter owns represent 1 point. Provided 0 for the answer parameter represents a Yes, 1 a No. Emits a "InvestorVoted" event.
+
+```
+executeProposal(uint256 id)
+```
+
+Enables to trigger the trade in the targeted proposal once the vote time is over, if there is strictly more yes votes than no votes. Emits a "ProposalExecuted" event.
+
+## Events
+
+- LiquidityInvested(address indexed user, uint256 amount)
+- LiquidityWithdrew(address indexed user, uint256 idaoAmount, uint256 weiAmount)
+- ProposalCreated( uint256 indexed id, address indexed proposer, address[] path, uint256 amountIn)
+- InvestorVoted(uint256 indexed id, address indexed voter, Vote answer, uint256 investorWeight)
+- ProposalExecuted(uint256 indexed id)
+
+## Installation
+
+This is a Hardhat environment. First, run `npm i`. Second, copy `.env.example`, rename it to `.env` and fill the fields.
+
+## Testing
+
+```
+npm test
+```
+
+# Deployment
+
+You adapt the different parameters of the contructor in the `scripts/deploy.ts` file.
+
+Then run
+
+```
+npx hardhat run scripts/deploy.ts --network <TARGETED_NETWORK>
 ```
 
 # Etherscan verification
 
-To try out Etherscan verification, you first need to deploy a contract to an Ethereum network that's supported by Etherscan, such as Ropsten.
-
-In this project, copy the .env.example file to a file named .env, and then edit it to fill in the details. Enter your Etherscan API key, your Ropsten node URL (eg from Alchemy), and the private key of the account which will send the deployment transaction. With a valid .env file in place, first deploy your contract:
+Copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
 
 ```shell
-hardhat run --network ropsten scripts/deploy.ts
-```
-
-Then, copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
-
-```shell
-npx hardhat verify --network ropsten DEPLOYED_CONTRACT_ADDRESS "Hello, Hardhat!"
+npx hardhat verify --network <TARGETED_NETWORK> <DEPLOYED_CONTRACT_ADDRESS> "arguments"
 ```
 
 # Performance optimizations
 
-For faster runs of your tests and scripts, consider skipping ts-node's type checking by setting the environment variable `TS_NODE_TRANSPILE_ONLY` to `1` in hardhat's environment. For more details see [the documentation](https://hardhat.org/guides/typescript.html#performance-optimizations).
+For faster runs of your tests and scripts, consider skipping ts-node's type checking by using
+
+```
+npm run test:optimized
+```

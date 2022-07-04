@@ -116,7 +116,7 @@ describe('InvestorDAO', () => {
     });
 
     it('should not contribute after contributionEnd', async () => {
-      await setTimestamp(await investorDao.contributionEnd());
+      await setTimestamp((await investorDao.contributionEnd()).toNumber());
       await expect(
         investorDao.connect(user).invest(amountInvested),
       ).to.be.revertedWith(
@@ -257,7 +257,7 @@ describe('InvestorDAO', () => {
 
     it('should not vote if vote period ended', async () => {
       const voteEnd = (await investorDao.proposals(0)).voteEnd;
-      await setTimestamp(voteEnd);
+      await setTimestamp(voteEnd.toNumber());
       await expect(
         investorDao.connect(user).voteProposal(0, 0),
       ).to.be.revertedWith('InvestorDao: vote period ended');
@@ -340,7 +340,7 @@ describe('InvestorDAO', () => {
         await investorDao.connect(user).executeProposal(0);
         const finalBalance = await provider.getBalance(user.address);
 
-        expect(finalBalance).equal(initialBalance);
+        expect(finalBalance).closeTo(initialBalance, 1_000_000_000_000);
       });
 
       it('should not execute if wrong id', async () => {

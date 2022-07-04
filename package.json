@@ -4,6 +4,8 @@
   "description": "",
   "scripts": {
     "test": "hardhat test",
+    "test:optimized": "TS_NODE_TRANSPILE_ONLY=1 hardhat test",
+    "coverage": "hardhat coverage",
     "types": "hardhat typechain"
   },
   "author": "",

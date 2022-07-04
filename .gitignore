@@ -1,13 +1,7 @@
-secret.json
-
-notes.txt
-
-truffle
-
 node_modules
 artifacts
 cache
 .env
-coverage
+coverage.json
 .DS_Store
 typechain

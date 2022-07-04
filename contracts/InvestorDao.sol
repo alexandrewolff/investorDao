@@ -19,8 +19,8 @@ contract InvestorDao {
     address public immutable weth;
     address public immutable uniswapRouter;
 
-    uint32 public immutable contributionEnd; // changed from 24 to 32
-    uint24 public immutable voteTime;
+    uint256 public immutable contributionEnd;
+    uint256 public immutable voteTime;
     uint256 public immutable proposalValidity;
     uint256 private immutable sendEthToExecutorGas;
 
@@ -34,13 +34,13 @@ contract InvestorDao {
     struct Proposal {
         address[] path;
         uint256 amountIn;
-        uint40 voteEnd;
+        uint256 voteEnd;
         uint256 yesVotes;
         uint256 noVotes;
         mapping(address => bool) voted;
     }
 
-    event LiquidityInvested(address indexed user, uint256 daiAmount);
+    event LiquidityInvested(address indexed user, uint256 amount);
     event LiquidityWithdrew(
         address indexed user,
         uint256 idaoAmount,
@@ -60,23 +60,15 @@ contract InvestorDao {
     );
     event ProposalExecuted(uint256 indexed id);
 
-    modifier onlyInvestors() {
-        require(
-            IIDAO(idao).balanceOf(msg.sender) > 0,
-            "InvestorDao: access restrictedd to investors"
-        );
-        _;
-    }
-
     constructor(
-        uint24 contributionTime,
-        uint24 _voteTime,
+        uint256 contributionTime,
+        uint256 _voteTime,
         uint256 _proposalValidity,
         address _idao,
         address _dai,
         address _weth,
         address _uniswapRouter,
-        uint256 _sendEthToExecutorMaxPrice
+        uint256 _sendEthToExecutorGas
     ) public {
         require(_idao != address(0), "zero address detected");
         require(_dai != address(0), "zero address detected");
@@ -89,7 +81,7 @@ contract InvestorDao {
         dai = _dai;
         weth = _weth;
         uniswapRouter = _uniswapRouter;
-        sendEthToExecutorGas = _sendEthToExecutorMaxPrice;
+        sendEthToExecutorGas = _sendEthToExecutorGas;
     }
 
     function getProposalsAmount() external view returns (uint256) {
@@ -129,13 +121,7 @@ contract InvestorDao {
             "InvestorDao: access restricted to investors"
         );
         proposals.push(
-            Proposal(
-                path,
-                amountIn,
-                uint40(block.timestamp.add(voteTime)),
-                0,
-                0
-            )
+            Proposal(path, amountIn, block.timestamp.add(voteTime), 0, 0)
         );
         emit ProposalCreated(
             // Cannot underflow since a proposition will always be pushed before

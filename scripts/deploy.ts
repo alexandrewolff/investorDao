@@ -1,29 +1,33 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// When running the script with `npx hardhat run <script>` you'll find the Hardhat
-// Runtime Environment's members available in the global scope.
-import { ethers } from "hardhat";
+import { ethers } from 'hardhat';
+
+const contributionTime = ethers.BigNumber.from(3600);
+const voteTime = ethers.BigNumber.from(3600);
+const proposalValidity = ethers.BigNumber.from(3600);
+const daiAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
+const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+const uniswapRouterAddress = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
+const sendEthToExecutorGas = ethers.BigNumber.from('88930');
 
 async function main() {
-  // Hardhat always runs the compile task when running scripts with its command
-  // line interface.
-  //
-  // If this script is run directly using `node` you may want to call compile
-  // manually to make sure everything is compiled
-  // await hre.run('compile');
+  const IDAO = await ethers.getContractFactory('IDAO');
+  const InvestorDao = await ethers.getContractFactory('InvestorDao');
 
-  // We get the contract to deploy
-  const Greeter = await ethers.getContractFactory("Greeter");
-  const greeter = await Greeter.deploy("Hello, Hardhat!");
+  const idao = await IDAO.deploy();
+  console.log('IDAO deployed to:', idao.address);
 
-  await greeter.deployed();
-
-  console.log("Greeter deployed to:", greeter.address);
+  const investorDao = await InvestorDao.deploy(
+    contributionTime,
+    voteTime,
+    proposalValidity,
+    idao.address,
+    daiAddress,
+    wethAddress,
+    uniswapRouterAddress,
+    sendEthToExecutorGas,
+  );
+  console.log('InvestorDao deployed to:', investorDao.address);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
