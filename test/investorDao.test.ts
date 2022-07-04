@@ -25,7 +25,7 @@ describe('InvestorDAO', () => {
   const mkrAddress = '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2';
   const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
   const uniswapRouterAddress = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
-  const sendEthToExecutorMaxGas = BigNumber.from('88930');
+  const sendEthToExecutorGas = BigNumber.from('88930');
 
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
@@ -56,7 +56,7 @@ describe('InvestorDAO', () => {
       daiAddress,
       wethAddress,
       uniswapRouterAddress,
-      sendEthToExecutorMaxGas,
+      sendEthToExecutorGas,
     );
 
     await idao.transferOwnership(investorDao.address);
@@ -347,6 +347,13 @@ describe('InvestorDAO', () => {
         await expect(
           investorDao.connect(user).executeProposal(3),
         ).to.be.revertedWith('InvestorDao: proposal does not exist');
+      });
+
+      it('should not execute if already executed', async () => {
+        await investorDao.connect(user).executeProposal(0);
+        await expect(
+          investorDao.connect(user).executeProposal(0),
+        ).to.be.revertedWith('InvestorDao: proposal expired');
       });
     });
 

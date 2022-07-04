@@ -22,7 +22,7 @@ contract InvestorDao {
     uint32 public immutable contributionEnd; // changed from 24 to 32
     uint24 public immutable voteTime;
     uint256 public immutable proposalValidity;
-    uint256 private immutable sendEthToExecutorMaxGas;
+    uint256 private immutable sendEthToExecutorGas;
 
     Proposal[] public proposals;
 
@@ -58,7 +58,7 @@ contract InvestorDao {
         Vote answer,
         uint256 investorWeight
     );
-    event ProposalExecuted(uint256 indexed proposalId);
+    event ProposalExecuted(uint256 indexed id);
 
     modifier onlyInvestors() {
         require(
@@ -89,7 +89,7 @@ contract InvestorDao {
         dai = _dai;
         weth = _weth;
         uniswapRouter = _uniswapRouter;
-        sendEthToExecutorMaxGas = _sendEthToExecutorMaxPrice;
+        sendEthToExecutorGas = _sendEthToExecutorMaxPrice;
     }
 
     function getProposalsAmount() external view returns (uint256) {
@@ -197,7 +197,7 @@ contract InvestorDao {
         uint256 endGas = gasleft();
 
         sendEthToExecutor(
-            (startGas.sub(endGas).add(sendEthToExecutorMaxGas)).mul(tx.gasprice)
+            (startGas.sub(endGas).add(sendEthToExecutorGas)).mul(tx.gasprice)
         );
     }
 
