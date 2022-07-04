@@ -115,7 +115,9 @@ contract InvestorDao {
         emit LiquidityWithdrew(msg.sender, idaoAmount, daiOut);
     }
 
-    function createProposal(address[] memory path, uint256 amountIn) external {
+    function createProposal(address[] calldata path, uint256 amountIn)
+        external
+    {
         require(
             IIDAO(idao).balanceOf(msg.sender) > 0,
             "InvestorDao: access restricted to investors"

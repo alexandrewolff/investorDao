@@ -110,7 +110,7 @@ Enables to withdraw DAI in exchange of IDAO. The amount of DAI received depends 
 createProposal(address[] memory path, uint256 amountIn)
 ```
 
-Enables to create a proposal. Requires to be an investor. Emits a "ProposalCreated" event.
+Enables to create a proposal. Requires to be an investor. Path is an array of the addressess of the tokens to swap, according to the Uniswap format (see [Uniswap V2 documentation](https://docs.uniswap.org/protocol/V2/reference/smart-contracts/router-02#swapexacttokensfortokens)) Emits a "ProposalCreated" event.
 
 ```
 voteProposal(uint256 id, Vote answer)
