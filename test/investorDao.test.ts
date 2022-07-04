@@ -11,7 +11,7 @@ const {
   getSigners,
   getSigner,
   getContractFactory,
-  constants: { AddressZero, MaxUint256 },
+  constants: { MaxUint256 },
   BigNumber,
   provider,
   utils,
@@ -25,7 +25,7 @@ describe('InvestorDAO', () => {
   const mkrAddress = '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2';
   const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
   const uniswapRouterAddress = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
-  const sendEthToExecutorMaxGas = BigNumber.from('90995');
+  const sendEthToExecutorMaxGas = BigNumber.from('88930');
 
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
@@ -177,19 +177,20 @@ describe('InvestorDAO', () => {
         (await provider.getBlock(await provider.getBlockNumber())).timestamp,
       );
 
-      await investorDao
+      const tx = await investorDao
         .connect(user)
-        .createProposal(0, mkrAddress, amountInvested);
-      const { direction, token, amountIn, voteEnd, yesVotes, noVotes } =
+        .createProposal([daiAddress, mkrAddress], amountInvested);
+
+      const { amountIn, voteEnd, yesVotes, noVotes } =
         await investorDao.proposals(0);
+      const path = (await tx.wait()).events?.[0].args?.path;
 
       expect(voteEnd).closeTo(
         timestamp.add(voteTime),
         1,
         'voteEnd test failed',
       );
-      expect(direction).equal(0, 'direction test failed');
-      expect(token).equal(mkrAddress, 'token test failed');
+      expect(path).eql([daiAddress, mkrAddress], 'path test failed');
       expect(amountIn).equal(amountInvested, 'amountIn test failed');
       expect(yesVotes).equal(0, 'yesVotes test failed');
       expect(noVotes).equal(0, 'noVotes test failed');
@@ -197,26 +198,20 @@ describe('InvestorDAO', () => {
 
     it('should emit ProposalCreated event', async () => {
       await expect(
-        investorDao.connect(user).createProposal(0, mkrAddress, amountInvested),
+        investorDao
+          .connect(user)
+          .createProposal([daiAddress, mkrAddress], amountInvested),
       )
         .to.emit(investorDao, 'ProposalCreated')
-        .withArgs(0, user.address, 0, mkrAddress, amountInvested);
+        .withArgs(0, user.address, [daiAddress, mkrAddress], amountInvested);
     });
 
     it('should not create proposal if not investor', async () => {
       await expect(
         investorDao
           .connect(owner)
-          .createProposal(0, mkrAddress, amountInvested),
+          .createProposal([daiAddress, mkrAddress], amountInvested),
       ).to.be.revertedWith('InvestorDao: access restricted to investors');
-    });
-
-    it('should not create proposal with zero address for token', async () => {
-      await expect(
-        investorDao
-          .connect(user)
-          .createProposal(0, AddressZero, amountInvested),
-      ).to.be.revertedWith('InvestorDao: zero address provided');
     });
   });
 
@@ -228,7 +223,7 @@ describe('InvestorDAO', () => {
       await investorDao.connect(user).invest(amountInvested);
       await investorDao
         .connect(user)
-        .createProposal(0, mkrAddress, amountInvested);
+        .createProposal([daiAddress, mkrAddress], amountInvested);
     });
 
     it('should vote yes', async () => {
@@ -286,124 +281,21 @@ describe('InvestorDAO', () => {
     beforeEach(async () => {
       await dai.connect(user).approve(investorDao.address, MaxUint256);
       await investorDao.connect(user).invest(amountInvested);
+      await investorDao
+        .connect(user)
+        .createProposal([daiAddress, mkrAddress], amountForProposal);
     });
 
-    describe('Buy', () => {
-      beforeEach(async () => {
-        await investorDao
-          .connect(user)
-          .createProposal(0, mkrAddress, amountForProposal);
-      });
-
-      it('should not execute if before vote end', async () => {
-        await expect(
-          investorDao.connect(user).executeProposal(0),
-        ).to.be.revertedWith(
-          'InvestorDao: cannot execute proposal before end of vote',
-        );
-      });
-
-      describe('Accepted', () => {
-        beforeEach(async () => {
-          await investorDao.connect(user).voteProposal(0, 0);
-
-          const voteEnd = BigNumber.from(
-            (await investorDao.proposals(0)).voteEnd,
-          );
-          const endOfProposalValidity = voteEnd.add(1).toNumber();
-          await setTimestamp(endOfProposalValidity);
-        });
-
-        it('should swap DAI', async () => {
-          const initialBalance = await dai.balanceOf(investorDao.address);
-          await investorDao.connect(user).executeProposal(0);
-          const finalBalance = await dai.balanceOf(investorDao.address);
-
-          expect(finalBalance).lt(initialBalance);
-        });
-
-        it('should receive MKR', async () => {
-          await investorDao.connect(user).executeProposal(0);
-          expect(await mkr.balanceOf(investorDao.address)).gt(0);
-        });
-
-        it('should delete proposal', async () => {
-          await investorDao.connect(user).executeProposal(0);
-          expect((await investorDao.proposals(0)).voteEnd).equal(0);
-        });
-
-        it('should emit ProposalExecuted event', async () => {
-          await expect(investorDao.connect(user).executeProposal(0))
-            .to.emit(investorDao, 'ProposalExecuted')
-            .withArgs(0);
-        });
-
-        it('should send 100 DAI to executor', async () => {
-          await expect(() =>
-            investorDao.connect(user).executeProposal(0),
-          ).to.changeTokenBalance(dai, user, utils.parseUnits('100', 18));
-        });
-
-        it('should refund tx fee to executor', async () => {
-          const initialBalance = await provider.getBalance(user.address);
-          await investorDao.connect(user).executeProposal(0);
-          const finalBalance = await provider.getBalance(user.address);
-
-          expect(finalBalance).equal(initialBalance);
-        });
-
-        it('should not execute if wrong id', async () => {
-          await expect(
-            investorDao.connect(user).executeProposal(3),
-          ).to.be.revertedWith('InvestorDao: proposal does not exist');
-        });
-      });
-
-      describe('Refused', () => {
-        beforeEach(async () => {
-          await investorDao.connect(user).voteProposal(0, 1);
-
-          const voteEnd = BigNumber.from(
-            (await investorDao.proposals(0)).voteEnd,
-          );
-          const endOfProposalValidity = voteEnd.add(1).toNumber();
-          await setTimestamp(endOfProposalValidity);
-        });
-
-        it('should not execute', async () => {
-          await expect(
-            investorDao.connect(user).executeProposal(0),
-          ).to.be.revertedWith('InvestorDao: proposal refused');
-        });
-      });
-
-      describe('Expired', () => {
-        beforeEach(async () => {
-          await investorDao.connect(user).voteProposal(0, 0);
-
-          const voteEnd = BigNumber.from(
-            (await investorDao.proposals(0)).voteEnd,
-          );
-          const endOfProposalValidity = voteEnd
-            .add(proposalValidity)
-            .add(1)
-            .toNumber();
-          await setTimestamp(endOfProposalValidity);
-        });
-
-        it('should not execute', async () => {
-          await expect(
-            investorDao.connect(user).executeProposal(0),
-          ).to.be.revertedWith('InvestorDao: proposal expired');
-        });
-      });
+    it('should not execute if before vote end', async () => {
+      await expect(
+        investorDao.connect(user).executeProposal(0),
+      ).to.be.revertedWith(
+        'InvestorDao: cannot execute proposal before end of vote',
+      );
     });
 
-    describe('Sell', () => {
+    describe('Accepted', () => {
       beforeEach(async () => {
-        await investorDao
-          .connect(user)
-          .createProposal(0, mkrAddress, amountForProposal);
         await investorDao.connect(user).voteProposal(0, 0);
 
         const voteEnd = BigNumber.from(
@@ -411,35 +303,89 @@ describe('InvestorDAO', () => {
         );
         const endOfProposalValidity = voteEnd.add(1).toNumber();
         await setTimestamp(endOfProposalValidity);
-
-        await investorDao.connect(user).executeProposal(0);
-
-        await investorDao
-          .connect(user)
-          .createProposal(
-            1,
-            mkrAddress,
-            await mkr.balanceOf(investorDao.address),
-          );
-        await investorDao.connect(user).voteProposal(1, 0);
       });
 
-      it('should execute', async () => {
+      it('should swap DAI', async () => {
+        const initialBalance = await dai.balanceOf(investorDao.address);
+        await investorDao.connect(user).executeProposal(0);
+        const finalBalance = await dai.balanceOf(investorDao.address);
+
+        expect(finalBalance).lt(initialBalance);
+      });
+
+      it('should receive MKR', async () => {
+        await investorDao.connect(user).executeProposal(0);
+        expect(await mkr.balanceOf(investorDao.address)).gt(0);
+      });
+
+      it('should delete proposal', async () => {
+        await investorDao.connect(user).executeProposal(0);
+        expect((await investorDao.proposals(0)).voteEnd).equal(0);
+      });
+
+      it('should emit ProposalExecuted event', async () => {
+        await expect(investorDao.connect(user).executeProposal(0))
+          .to.emit(investorDao, 'ProposalExecuted')
+          .withArgs(0);
+      });
+
+      it('should send 100 DAI to executor', async () => {
+        await expect(() =>
+          investorDao.connect(user).executeProposal(0),
+        ).to.changeTokenBalance(dai, user, utils.parseUnits('100', 18));
+      });
+
+      it('should refund tx fee to executor', async () => {
+        const initialBalance = await provider.getBalance(user.address);
+        await investorDao.connect(user).executeProposal(0);
+        const finalBalance = await provider.getBalance(user.address);
+
+        expect(finalBalance).equal(initialBalance);
+      });
+
+      it('should not execute if wrong id', async () => {
+        await expect(
+          investorDao.connect(user).executeProposal(3),
+        ).to.be.revertedWith('InvestorDao: proposal does not exist');
+      });
+    });
+
+    describe('Refused', () => {
+      beforeEach(async () => {
+        await investorDao.connect(user).voteProposal(0, 1);
+
         const voteEnd = BigNumber.from(
-          (await investorDao.proposals(1)).voteEnd,
+          (await investorDao.proposals(0)).voteEnd,
         );
         const endOfProposalValidity = voteEnd.add(1).toNumber();
         await setTimestamp(endOfProposalValidity);
+      });
 
-        const initialDaiBalance = await dai.balanceOf(investorDao.address);
+      it('should not execute', async () => {
+        await expect(
+          investorDao.connect(user).executeProposal(0),
+        ).to.be.revertedWith('InvestorDao: proposal refused');
+      });
+    });
 
-        await investorDao.connect(user).executeProposal(1);
+    describe('Expired', () => {
+      beforeEach(async () => {
+        await investorDao.connect(user).voteProposal(0, 0);
 
-        const finalMkrBalance = await mkr.balanceOf(investorDao.address);
-        const finalDaiBalance = await dai.balanceOf(investorDao.address);
+        const voteEnd = BigNumber.from(
+          (await investorDao.proposals(0)).voteEnd,
+        );
+        const endOfProposalValidity = voteEnd
+          .add(proposalValidity)
+          .add(1)
+          .toNumber();
+        await setTimestamp(endOfProposalValidity);
+      });
 
-        expect(finalMkrBalance).equal(0);
-        expect(finalDaiBalance).gt(initialDaiBalance);
+      it('should not execute', async () => {
+        await expect(
+          investorDao.connect(user).executeProposal(0),
+        ).to.be.revertedWith('InvestorDao: proposal expired');
       });
     });
   });

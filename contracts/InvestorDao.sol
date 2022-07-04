@@ -26,19 +26,13 @@ contract InvestorDao {
 
     Proposal[] public proposals;
 
-    enum Direction {
-        BUY,
-        SELL
-    }
-
     enum Vote {
         YES,
         NO
     }
 
     struct Proposal {
-        Direction direction;
-        address token;
+        address[] path;
         uint256 amountIn;
         uint40 voteEnd;
         uint256 yesVotes;
@@ -46,26 +40,25 @@ contract InvestorDao {
         mapping(address => bool) voted;
     }
 
-    event LiquidityInvested(address user, uint256 daiAmount);
+    event LiquidityInvested(address indexed user, uint256 daiAmount);
     event LiquidityWithdrew(
-        address user,
+        address indexed user,
         uint256 idaoAmount,
         uint256 weiAmount
     );
     event ProposalCreated(
-        uint256 id,
-        address proposer,
-        Direction direction,
-        address token,
+        uint256 indexed id,
+        address indexed proposer,
+        address[] path,
         uint256 amountIn
     );
     event InvestorVoted(
-        uint256 proposalId,
-        address voter,
+        uint256 indexed id,
+        address indexed voter,
         Vote answer,
         uint256 investorWeight
     );
-    event ProposalExecuted(uint256 proposalId);
+    event ProposalExecuted(uint256 indexed proposalId);
 
     modifier onlyInvestors() {
         require(
@@ -130,20 +123,14 @@ contract InvestorDao {
         emit LiquidityWithdrew(msg.sender, idaoAmount, daiOut);
     }
 
-    function createProposal(
-        Direction direction,
-        address token,
-        uint256 amountIn
-    ) external {
+    function createProposal(address[] memory path, uint256 amountIn) external {
         require(
             IIDAO(idao).balanceOf(msg.sender) > 0,
             "InvestorDao: access restricted to investors"
         );
-        require(token != address(0), "InvestorDao: zero address provided");
         proposals.push(
             Proposal(
-                direction,
-                token,
+                path,
                 amountIn,
                 uint40(block.timestamp.add(voteTime)),
                 0,
@@ -154,8 +141,7 @@ contract InvestorDao {
             // Cannot underflow since a proposition will always be pushed before
             proposals.length - 1,
             msg.sender,
-            direction,
-            token,
+            path,
             amountIn
         );
     }
@@ -201,11 +187,7 @@ contract InvestorDao {
             "InvestorDao: proposal refused"
         );
 
-        if (proposal.direction == Direction.BUY) {
-            trade(proposal.amountIn, dai, proposal.token);
-        } else {
-            trade(proposal.amountIn, proposal.token, dai);
-        }
+        trade(proposal.path, proposal.amountIn);
 
         delete proposals[id];
         emit ProposalExecuted(id);
@@ -219,16 +201,11 @@ contract InvestorDao {
         );
     }
 
-    function trade(
-        uint256 amountIn,
-        address token0,
-        address token1
-    ) private returns (uint256[] memory) {
-        address[] memory path = new address[](2);
-        path[0] = token0;
-        path[1] = token1;
-
-        IERC20(token0).approve(uniswapRouter, amountIn);
+    function trade(address[] memory path, uint256 amountIn)
+        private
+        returns (uint256[] memory)
+    {
+        IERC20(path[0]).approve(uniswapRouter, amountIn);
 
         IUniswapV2Router02 uniswap = IUniswapV2Router02(uniswapRouter);
         uint256[] memory maxAmounts = IUniswapV2Router02(uniswapRouter)
