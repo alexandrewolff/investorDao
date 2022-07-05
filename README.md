@@ -9,6 +9,8 @@ Investors are then able to make investment proposals to swap the DAI in the fund
 The IDAO tokens subsequently represent the total value of all tokens detained by the DAO. They can be traded or used to redeem DAI tokens, depending on the amount available.
 Considering that the DAO's funds will be invested most of the time, withdrawing DAI will always be done at the expense of a premium. Thus, the point is to rather trade the IDAO token for a price that depends on the token basket in the DAO.
 
+To incentivise actors to trigger proposal execution at the end of a successful vote, transaction fees are refunded for it and a 100 DAI reward is sent.
+
 ## Contracts
 
 The protocol is currently made of three contracts :
@@ -122,7 +124,9 @@ Enables to vote for a proposal. The vote is weighted, each IDAO the voter owns r
 executeProposal(uint256 id)
 ```
 
-Enables to trigger the trade in the targeted proposal once the vote time is over, if there is strictly more yes votes than no votes. Emits a "ProposalExecuted" event.
+Enables to trigger the trade in the targeted proposal once the vote time is over, if there is strictly more yes votes than no votes.
+The gas consumed by the function is tracked so at the end of it, some of the reserve DAI is swaped against ETH to refund the caller. A 100 DAI reward is also sent to him/her.
+Emits a "ProposalExecuted" event.
 
 ## Events
 
@@ -157,7 +161,7 @@ npx hardhat run scripts/deploy.ts --network <TARGETED_NETWORK>
 Copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
 
 ```shell
-npx hardhat verify --network <TARGETED_NETWORK> <DEPLOYED_CONTRACT_ADDRESS> "arguments"
+npx hardhat verify --network <TARGETED_NETWORK> <DEPLOYED_CONTRACT_ADDRESS> "constructor argument 1" "constructor argument 2" "constructor argument 3" "constructor argument 4" "constructor argument 5" "constructor argument 6" "constructor argument 7" "constructor argument 8"
 ```
 
 # Performance optimizations
