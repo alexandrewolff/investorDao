@@ -2,13 +2,12 @@
 
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "./interfaces/IIDAO.sol";
-
-import "hardhat/console.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import {Vote, Proposal} from "./DataStructures.sol";
+import {IIDAO} from "./interfaces/IIDAO.sol";
 
 contract InvestorDao {
     using SafeMath for uint256;
@@ -25,20 +24,6 @@ contract InvestorDao {
     uint256 private immutable sendEthToExecutorGas;
 
     Proposal[] public proposals;
-
-    enum Vote {
-        YES,
-        NO
-    }
-
-    struct Proposal {
-        address[] path;
-        uint256 amountIn;
-        uint256 voteEnd;
-        uint256 yesVotes;
-        uint256 noVotes;
-        mapping(address => bool) voted;
-    }
 
     event LiquidityInvested(address indexed user, uint256 amount);
     event LiquidityWithdrew(
